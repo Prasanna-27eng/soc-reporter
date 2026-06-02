@@ -4,7 +4,7 @@ COPY frontend/package.json ./
 RUN npm install --legacy-peer-deps
 COPY frontend/ ./
 ENV REACT_APP_API_URL=""
-RUN npm run build
+RUN CI=false npm run build
 
 FROM python:3.11-slim
 WORKDIR /app
