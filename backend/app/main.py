@@ -63,14 +63,32 @@ def on_startup():
 def health():
     return {"status": "ok", "service": "SOC Report Automator v1.0"}
 
+@app.get("/api/test-db")
+def test_db():
+    import os
+    from app.models.database import engine, DATABASE_URL
+    try:
+        with engine.connect() as conn:
+            conn.execute(__import__("sqlalchemy").text("SELECT 1"))
+        return {
+            "db_status": "connected",
+            "db_url": DATABASE_URL,
+            "tmp_writable": os.access("/tmp", os.W_OK),
+            "cwd": os.getcwd(),
+        }
+    except Exception as e:
+        return {"db_status": "error", "error": str(e), "db_url": DATABASE_URL}
+
 # Serve React build (production)
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
+STATIC_DIR = "/app/static"
+STATIC_ASSETS = "/app/static/static"
+
 if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=os.path.join(STATIC_DIR, "static")), name="static")
+    if os.path.exists(STATIC_ASSETS):
+        app.mount("/static", StaticFiles(directory=STATIC_ASSETS), name="static")
 
     @app.get("/{full_path:path}")
     def serve_react(full_path: str):
-        index = os.path.join(STATIC_DIR, "index.html")
-        if os.path.exists(index):
-            return FileResponse(index)
-        return JSONResponse({"error": "Frontend not built"}, status_code=404)
+        if os.path.exists(f"{STATIC_DIR}/index.html"):
+            return FileResponse(f"{STATIC_DIR}/index.html")
+        return JSONResponse({"error": "Frontend not built yet"}, status_code=404)

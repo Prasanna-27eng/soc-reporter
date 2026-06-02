@@ -1,83 +1,156 @@
 import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../App';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, FolderOpen, Search, Bug, LogOut,
-  Shield, ChevronLeft, ChevronRight, Menu
+  LayoutDashboard, FolderOpen, Search, Bug,
+  Shield, ChevronLeft, ChevronRight, Activity
 } from 'lucide-react';
 
-const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/cases', icon: FolderOpen, label: 'Cases' },
-  { to: '/vt-lookup', icon: Search, label: 'VT Lookup' },
-  { to: '/malware', icon: Bug, label: 'Malware Tools' },
+const NAV = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', desc: 'Overview' },
+  { to: '/cases',     icon: FolderOpen,      label: 'Cases',     desc: 'Incidents' },
+  { to: '/vt-lookup', icon: Search,          label: 'VT Lookup', desc: 'Threat Intel' },
+  { to: '/malware',   icon: Bug,             label: 'Malware',   desc: 'Analysis' },
 ];
 
 export default function Layout() {
-  const { username, logout } = useAuth();
-  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
-
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const location = useLocation();
 
   return (
-    <div className="flex h-screen bg-soc-bg overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ background: '#050A14' }}>
+
       {/* Sidebar */}
-      <aside className={`flex flex-col bg-soc-surface border-r border-soc-border transition-all duration-300 ${collapsed ? 'w-16' : 'w-56'}`}>
+      <aside
+        style={{
+          width: collapsed ? '72px' : '220px',
+          background: 'rgba(11,20,38,0.95)',
+          borderRight: '1px solid rgba(0,212,255,0.08)',
+          transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1)',
+          display: 'flex', flexDirection: 'column',
+          backdropFilter: 'blur(20px)',
+          flexShrink: 0,
+          position: 'relative', zIndex: 10,
+        }}
+      >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-4 py-5 border-b border-soc-border">
-          <Shield className="text-soc-cyan shrink-0" size={22} />
-          {!collapsed && <span className="font-bold text-white text-sm tracking-wide">SOC Reporter</span>}
+        <div style={{
+          padding: '20px 16px 16px',
+          borderBottom: '1px solid rgba(0,212,255,0.06)',
+          display: 'flex', alignItems: 'center', gap: '12px',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+            background: 'linear-gradient(135deg, #00D4FF22, #00D4FF44)',
+            border: '1px solid rgba(0,212,255,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Shield size={18} style={{ color: '#00D4FF' }} />
+          </div>
+          {!collapsed && (
+            <div style={{ overflow: 'hidden' }}>
+              <p style={{ color: '#E2E8F0', fontWeight: 600, fontSize: 13, lineHeight: 1.2, whiteSpace: 'nowrap' }}>SOC Reporter</p>
+              <p style={{ color: '#00D4FF', fontSize: 10, fontWeight: 500, letterSpacing: '0.08em' }}>AI PLATFORM</p>
+            </div>
+          )}
         </div>
 
+        {/* Status pill */}
+        {!collapsed && (
+          <div style={{ padding: '10px 16px' }}>
+            <div style={{
+              background: 'rgba(6,214,160,0.08)', border: '1px solid rgba(6,214,160,0.2)',
+              borderRadius: 20, padding: '5px 10px',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#06D6A0', animation: 'pulse 2s infinite' }} />
+              <span style={{ color: '#06D6A0', fontSize: 11, fontWeight: 500 }}>System Online</span>
+            </div>
+          </div>
+        )}
+
         {/* Nav */}
-        <nav className="flex-1 py-4 space-y-1 px-2">
-          {navItems.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-                  isActive
-                    ? 'bg-soc-cyan/10 text-soc-cyan border border-soc-cyan/20'
-                    : 'text-soc-muted hover:text-soc-text hover:bg-soc-card'
-                }`
-              }
+        <nav style={{ flex: 1, padding: '8px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {NAV.map(({ to, icon: Icon, label, desc }) => (
+            <NavLink key={to} to={to} className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              style={({ isActive }) => ({
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: collapsed ? '10px 0' : '10px 12px',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                borderRadius: 10, textDecoration: 'none', overflow: 'hidden',
+                background: isActive ? 'rgba(0,212,255,0.07)' : 'transparent',
+                border: isActive ? '1px solid rgba(0,212,255,0.15)' : '1px solid transparent',
+                color: isActive ? '#00D4FF' : '#64748B',
+                transition: 'all 0.2s ease',
+              })}
             >
-              <Icon size={17} className="shrink-0" />
-              {!collapsed && <span>{label}</span>}
+              {({ isActive }) => (
+                <>
+                  <Icon size={17} style={{ flexShrink: 0, color: isActive ? '#00D4FF' : '#64748B' }} />
+                  {!collapsed && (
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.2, color: isActive ? '#E2E8F0' : '#94A3B8' }}>{label}</p>
+                      <p style={{ fontSize: 10, color: isActive ? '#00D4FF' : '#475569', lineHeight: 1 }}>{desc}</p>
+                    </div>
+                  )}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
 
-        {/* User + collapse */}
-        <div className="border-t border-soc-border p-3 space-y-2">
-          {!collapsed && (
-            <div className="px-2 py-1">
-              <p className="text-xs text-soc-muted">Signed in as</p>
-              <p className="text-sm text-soc-text font-medium truncate">{username}</p>
-            </div>
-          )}
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm text-soc-muted hover:text-red-400 hover:bg-red-400/10 transition-all"
-          >
-            <LogOut size={16} className="shrink-0" />
-            {!collapsed && 'Logout'}
-          </button>
+        {/* Collapse btn */}
+        <div style={{ padding: '12px 8px', borderTop: '1px solid rgba(0,212,255,0.06)' }}>
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm text-soc-muted hover:text-soc-text hover:bg-soc-card transition-all"
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              gap: 8, padding: '8px 12px', borderRadius: 8,
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: '#475569', transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#94A3B8'}
+            onMouseLeave={e => e.currentTarget.style.color = '#475569'}
           >
-            {collapsed ? <ChevronRight size={16} /> : <><ChevronLeft size={16} /><span>Collapse</span></>}
+            {collapsed ? <ChevronRight size={15} /> : <><ChevronLeft size={15} /><span style={{ fontSize: 12 }}>Collapse</span></>}
           </button>
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
-      </main>
+      {/* Main content */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {/* Top bar */}
+        <header style={{
+          height: 56, padding: '0 24px',
+          background: 'rgba(11,20,38,0.8)',
+          borderBottom: '1px solid rgba(0,212,255,0.06)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          backdropFilter: 'blur(12px)', flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Activity size={14} style={{ color: '#00D4FF' }} />
+            <span style={{ color: '#64748B', fontSize: 12 }}>
+              {NAV.find(n => location.pathname.startsWith(n.to))?.label || 'SOC Reporter'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <span style={{ color: '#475569', fontSize: 11, fontFamily: 'JetBrains Mono' }}>
+              {new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+            <div style={{
+              padding: '4px 12px', borderRadius: 20,
+              background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)',
+              color: '#00D4FF', fontSize: 11, fontWeight: 600,
+            }}>SOC L1 ANALYST</div>
+          </div>
+        </header>
+
+        {/* Page */}
+        <main key={location.pathname} style={{ flex: 1, overflowY: 'auto' }} className="page-enter">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

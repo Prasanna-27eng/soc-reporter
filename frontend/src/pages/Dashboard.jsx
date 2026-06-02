@@ -1,20 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Clock, TrendingUp, FolderOpen, ShieldAlert, Activity, Plus } from 'lucide-react';
+import { Plus, TrendingUp, Shield, AlertTriangle, CheckCircle, Clock, Activity, ChevronRight, Zap } from 'lucide-react';
 import api from '../api/client';
 
-const SEV_COLORS = {
-  Critical: 'text-red-400 bg-red-400/10 border-red-400/20',
-  High: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  Medium: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
-  Low: 'text-green-400 bg-green-400/10 border-green-400/20',
+function AnimatedNumber({ value, duration = 1200 }) {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) clearInterval(ref.current);
+    const start = Date.now();
+    const end = start + duration;
+    ref.current = setInterval(() => {
+      const now = Date.now();
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(eased * value));
+      if (progress >= 1) clearInterval(ref.current);
+    }, 16);
+    return () => clearInterval(ref.current);
+  }, [value, duration]);
+  return <span>{display}</span>;
+}
+
+const SEV_MAP = {
+  Critical: { color: '#FF4D6D', bg: 'rgba(255,77,109,0.1)', border: 'rgba(255,77,109,0.25)' },
+  High:     { color: '#FF8C42', bg: 'rgba(255,140,66,0.1)', border: 'rgba(255,140,66,0.25)' },
+  Medium:   { color: '#FFD166', bg: 'rgba(255,209,102,0.1)', border: 'rgba(255,209,102,0.25)' },
+  Low:      { color: '#06D6A0', bg: 'rgba(6,214,160,0.1)', border: 'rgba(6,214,160,0.25)' },
 };
 
-const STATUS_COLORS = {
-  Open: 'text-red-400',
-  'In Progress': 'text-yellow-400',
-  Closed: 'text-green-400',
-};
+const STATUS_COLOR = { Open: '#FF4D6D', 'In Progress': '#FFD166', Closed: '#06D6A0' };
 
 export default function Dashboard() {
   const [cases, setCases] = useState([]);
@@ -31,143 +46,170 @@ export default function Dashboard() {
     inProgress: cases.filter(c => c.status === 'In Progress').length,
     closed: cases.filter(c => c.status === 'Closed').length,
     critical: cases.filter(c => c.severity === 'Critical').length,
-    high: cases.filter(c => c.severity === 'High').length,
-    totalIOCs: cases.reduce((acc, c) => acc + (Array.isArray(c.iocs) ? c.iocs.length : 0), 0),
-    aiGenerated: cases.filter(c => c.ai_executive_summary).length,
+    totalIOCs: cases.reduce((a, c) => a + (Array.isArray(c.iocs) ? c.iocs.length : 0), 0),
+    aiDone: cases.filter(c => c.ai_executive_summary).length,
   };
 
-  const recentCases = cases.slice(0, 8);
+  const typeCounts = cases.reduce((acc, c) => { acc[c.incident_type] = (acc[c.incident_type] || 0) + 1; return acc; }, {});
 
-  const typeCounts = cases.reduce((acc, c) => {
-    acc[c.incident_type] = (acc[c.incident_type] || 0) + 1;
-    return acc;
-  }, {});
+  const statCards = [
+    { label: 'Total Cases',    value: stats.total,     icon: Shield,        color: '#00D4FF', delay: 0 },
+    { label: 'Open',           value: stats.open,      icon: AlertTriangle, color: '#FF4D6D', delay: 0.05 },
+    { label: 'In Progress',    value: stats.inProgress, icon: Clock,        color: '#FFD166', delay: 0.1 },
+    { label: 'Closed',         value: stats.closed,    icon: CheckCircle,   color: '#06D6A0', delay: 0.15 },
+    { label: 'Critical',       value: stats.critical,  icon: Zap,           color: '#FF4D6D', delay: 0.2 },
+    { label: 'Total IOCs',     value: stats.totalIOCs, icon: Activity,      color: '#6366F1', delay: 0.25 },
+    { label: 'AI Reports',     value: stats.aiDone,    icon: TrendingUp,    color: '#00D4FF', delay: 0.3 },
+    { label: 'Types',          value: Object.keys(typeCounts).length, icon: Shield, color: '#FF8C42', delay: 0.35 },
+  ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div style={{ padding: '24px', maxWidth: 1280, margin: '0 auto' }} className="cyber-grid">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="stagger-1" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
-          <h1 className="text-2xl font-bold text-white">Analyst Dashboard</h1>
-          <p className="text-soc-muted text-sm mt-1">Overview of all incidents and IOCs</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#E2E8F0', lineHeight: 1.2 }}>
+            Analyst Dashboard
+          </h1>
+          <p style={{ color: '#475569', fontSize: 13, marginTop: 4 }}>
+            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
         </div>
         <button
           onClick={() => navigate('/cases')}
-          className="flex items-center gap-2 bg-soc-cyan text-soc-bg px-4 py-2 rounded-lg text-sm font-semibold hover:bg-soc-cyan-dim transition-colors"
+          className="btn-primary"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13 }}
         >
-          <Plus size={16} /> New Case
+          <Plus size={15} /> New Case
         </button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Total Cases', value: stats.total, icon: FolderOpen, color: 'text-soc-cyan', bg: 'bg-soc-cyan/10' },
-          { label: 'Open', value: stats.open, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-400/10' },
-          { label: 'In Progress', value: stats.inProgress, icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-          { label: 'Closed', value: stats.closed, icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-400/10' },
-          { label: 'Critical', value: stats.critical, icon: ShieldAlert, color: 'text-red-400', bg: 'bg-red-400/10' },
-          { label: 'High Severity', value: stats.high, icon: TrendingUp, color: 'text-orange-400', bg: 'bg-orange-400/10' },
-          { label: 'Total IOCs', value: stats.totalIOCs, icon: Activity, color: 'text-purple-400', bg: 'bg-purple-400/10' },
-          { label: 'AI Reports', value: stats.aiGenerated, icon: TrendingUp, color: 'text-soc-cyan', bg: 'bg-soc-cyan/10' },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="bg-soc-card border border-soc-border rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-soc-muted">{label}</span>
-              <div className={`${bg} p-1.5 rounded-lg`}>
-                <Icon size={14} className={color} />
+      {/* Stat cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        {statCards.map(({ label, value, icon: Icon, color, delay }) => (
+          <div
+            key={label}
+            className="stat-card"
+            style={{
+              background: 'rgba(15,29,53,0.8)', border: '1px solid rgba(0,212,255,0.08)',
+              borderRadius: 14, padding: '18px 20px',
+              opacity: 0, animation: `fadeUp 0.4s ease ${delay}s forwards`,
+              cursor: 'default',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <span style={{ fontSize: 12, color: '#64748B', fontWeight: 500, letterSpacing: '0.02em' }}>{label}</span>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon size={15} style={{ color }} />
               </div>
             </div>
-            <p className={`text-2xl font-bold ${color}`}>{loading ? '—' : value}</p>
+            <div style={{ fontSize: 28, fontWeight: 700, color, lineHeight: 1 }}>
+              {loading ? '—' : <AnimatedNumber value={value} />}
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16 }}>
+
         {/* Recent Cases */}
-        <div className="lg:col-span-2 bg-soc-card border border-soc-border rounded-xl">
-          <div className="flex items-center justify-between p-4 border-b border-soc-border">
-            <h2 className="text-sm font-semibold text-white">Recent Cases</h2>
-            <button onClick={() => navigate('/cases')} className="text-xs text-soc-cyan hover:underline">View all</button>
+        <div className="stagger-2" style={{ background: 'rgba(15,29,53,0.8)', border: '1px solid rgba(0,212,255,0.08)', borderRadius: 16, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(0,212,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#E2E8F0' }}>Recent Incidents</span>
+            <button onClick={() => navigate('/cases')} style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#00D4FF', fontSize: 12, background: 'none', border: 'none', cursor: 'pointer' }}>
+              View all <ChevronRight size={13} />
+            </button>
           </div>
-          <div className="divide-y divide-soc-border">
-            {loading ? (
-              <div className="p-8 text-center text-soc-muted text-sm">Loading...</div>
-            ) : recentCases.length === 0 ? (
-              <div className="p-8 text-center">
-                <FolderOpen className="mx-auto mb-3 text-soc-muted" size={32} />
-                <p className="text-soc-muted text-sm">No cases yet.</p>
-                <button onClick={() => navigate('/cases')} className="mt-3 text-soc-cyan text-sm hover:underline">Create your first case →</button>
-              </div>
-            ) : recentCases.map(c => (
-              <div
-                key={c.id}
-                onClick={() => navigate(`/cases/${c.id}`)}
-                className="flex items-center gap-4 px-4 py-3 hover:bg-soc-surface cursor-pointer transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white font-medium truncate">{c.title}</p>
-                  <p className="text-xs text-soc-muted mt-0.5">{c.case_number} · {c.incident_type}</p>
-                </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${SEV_COLORS[c.severity] || SEV_COLORS.Low}`}>
-                  {c.severity}
-                </span>
-                <span className={`text-xs font-medium ${STATUS_COLORS[c.status] || 'text-soc-muted'}`}>
-                  {c.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Incident Types */}
-        <div className="bg-soc-card border border-soc-border rounded-xl">
-          <div className="p-4 border-b border-soc-border">
-            <h2 className="text-sm font-semibold text-white">Incidents by Type</h2>
-          </div>
-          <div className="p-4 space-y-3">
-            {Object.keys(typeCounts).length === 0 ? (
-              <p className="text-soc-muted text-sm text-center py-4">No data yet</p>
-            ) : Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
-              <div key={type}>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-soc-text">{type}</span>
-                  <span className="text-soc-muted">{count}</span>
-                </div>
-                <div className="h-1.5 bg-soc-surface rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-soc-cyan rounded-full"
-                    style={{ width: `${(count / stats.total) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Severity Breakdown */}
-          <div className="p-4 border-t border-soc-border">
-            <h3 className="text-xs text-soc-muted mb-3 uppercase tracking-wider">Severity Breakdown</h3>
-            <div className="space-y-2">
-              {['Critical', 'High', 'Medium', 'Low'].map(sev => {
-                const count = cases.filter(c => c.severity === sev).length;
+          {loading ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#475569', fontSize: 13 }}>Loading...</div>
+          ) : cases.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center' }}>
+              <Shield size={36} style={{ color: '#1A2F50', margin: '0 auto 12px' }} />
+              <p style={{ color: '#475569', fontSize: 13, marginBottom: 12 }}>No cases yet.</p>
+              <button onClick={() => navigate('/cases')} style={{ color: '#00D4FF', fontSize: 12, background: 'none', border: 'none', cursor: 'pointer' }}>
+                Create your first case →
+              </button>
+            </div>
+          ) : (
+            <div>
+              {cases.slice(0, 8).map((c, i) => {
+                const sev = SEV_MAP[c.severity] || SEV_MAP.Low;
                 return (
-                  <div key={sev} className="flex items-center gap-3">
-                    <span className={`text-xs w-14 font-medium ${SEV_COLORS[sev]?.split(' ')[0]}`}>{sev}</span>
-                    <div className="flex-1 h-1.5 bg-soc-surface rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${
-                          sev === 'Critical' ? 'bg-red-400' :
-                          sev === 'High' ? 'bg-orange-400' :
-                          sev === 'Medium' ? 'bg-yellow-400' : 'bg-green-400'
-                        }`}
-                        style={{ width: stats.total ? `${(count / stats.total) * 100}%` : '0%' }}
-                      />
+                  <div
+                    key={c.id}
+                    onClick={() => navigate(`/cases/${c.id}`)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 14,
+                      padding: '12px 20px', cursor: 'pointer',
+                      borderBottom: i < 7 ? '1px solid rgba(0,212,255,0.04)' : 'none',
+                      transition: 'background 0.15s',
+                      opacity: 0, animation: `fadeIn 0.3s ease ${i * 0.04}s forwards`,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,212,255,0.03)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: sev.color, flexShrink: 0, boxShadow: `0 0 6px ${sev.color}` }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, color: '#CBD5E1', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</p>
+                      <p style={{ fontSize: 11, color: '#475569', marginTop: 1 }}>{c.case_number} · {c.incident_type}</p>
                     </div>
-                    <span className="text-xs text-soc-muted w-4 text-right">{count}</span>
+                    <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 20, border: `1px solid ${sev.border}`, background: sev.bg, color: sev.color, fontWeight: 600, flexShrink: 0 }}>
+                      {c.severity}
+                    </span>
+                    <span style={{ fontSize: 11, color: STATUS_COLOR[c.status] || '#64748B', fontWeight: 500, flexShrink: 0, width: 72, textAlign: 'right' }}>
+                      {c.status}
+                    </span>
                   </div>
                 );
               })}
             </div>
+          )}
+        </div>
+
+        {/* Right panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Severity breakdown */}
+          <div className="stagger-3" style={{ background: 'rgba(15,29,53,0.8)', border: '1px solid rgba(0,212,255,0.08)', borderRadius: 16, padding: '16px 20px' }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#E2E8F0', marginBottom: 14 }}>Severity Breakdown</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { label: 'Critical', color: '#FF4D6D' },
+                { label: 'High',     color: '#FF8C42' },
+                { label: 'Medium',   color: '#FFD166' },
+                { label: 'Low',      color: '#06D6A0' },
+              ].map(({ label, color }) => {
+                const count = cases.filter(c => c.severity === label).length;
+                const pct = stats.total ? (count / stats.total) * 100 : 0;
+                return (
+                  <div key={label}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, color: '#94A3B8' }}>{label}</span>
+                      <span style={{ fontSize: 12, color, fontWeight: 600 }}>{count}</span>
+                    </div>
+                    <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div className="progress-bar" style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, boxShadow: `0 0 6px ${color}66` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Incident types */}
+          <div className="stagger-4" style={{ background: 'rgba(15,29,53,0.8)', border: '1px solid rgba(0,212,255,0.08)', borderRadius: 16, padding: '16px 20px', flex: 1 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#E2E8F0', marginBottom: 14 }}>Incident Types</p>
+            {Object.keys(typeCounts).length === 0 ? (
+              <p style={{ color: '#475569', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>No data yet</p>
+            ) : Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
+              <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: '#94A3B8', flex: 1 }}>{type}</span>
+                <div style={{ height: 4, width: 80, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${(count / stats.total) * 100}%`, background: '#00D4FF', borderRadius: 2 }} />
+                </div>
+                <span style={{ fontSize: 11, color: '#00D4FF', width: 16, textAlign: 'right', fontWeight: 600 }}>{count}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

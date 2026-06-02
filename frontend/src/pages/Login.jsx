@@ -36,7 +36,12 @@ export default function Login() {
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Authentication failed');
+      const detail = err.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        setError(detail.map(d => d.msg).join(', '));
+      } else {
+        setError(detail || err.message || 'Authentication failed');
+      }
     } finally {
       setLoading(false);
     }

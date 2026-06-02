@@ -3,36 +3,119 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SOC Report Automator</title>
+    <title>SOC Reporter — AI Incident Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: { sans: ['Inter', 'system-ui'], mono: ['JetBrains Mono', 'monospace'] },
             colors: {
-              'soc-bg': '#070B14',
-              'soc-surface': '#0D1526',
-              'soc-card': '#111D35',
-              'soc-border': '#1A2B4A',
-              'soc-cyan': '#00C8E8',
-              'soc-cyan-dim': '#0099B8',
-              'soc-purple': '#7C3AED',
-              'soc-text': '#CBD5E1',
-              'soc-muted': '#64748B',
+              bg:      '#050A14',
+              surface: '#0B1426',
+              card:    '#0F1D35',
+              border:  '#1A2F50',
+              cyan:    '#00D4FF',
+              'cyan-dim': '#00A8CC',
+              indigo:  '#6366F1',
+              text:    '#E2E8F0',
+              muted:   '#64748B',
+            },
+            animation: {
+              'fade-up':   'fadeUp 0.4s ease forwards',
+              'fade-in':   'fadeIn 0.3s ease forwards',
+              'slide-in':  'slideIn 0.3s ease forwards',
+              'pulse-slow':'pulse 3s ease-in-out infinite',
+              'count-up':  'countUp 1s ease forwards',
+            },
+            keyframes: {
+              fadeUp:  { '0%': { opacity: 0, transform: 'translateY(16px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
+              fadeIn:  { '0%': { opacity: 0 }, '100%': { opacity: 1 } },
+              slideIn: { '0%': { opacity: 0, transform: 'translateX(-12px)' }, '100%': { opacity: 1, transform: 'translateX(0)' } },
             }
           }
         }
       }
     </script>
     <style>
-      * { box-sizing: border-box; }
-      body { background: #070B14; color: #CBD5E1; font-family: 'Inter', system-ui, sans-serif; }
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: #0D1526; }
-      ::-webkit-scrollbar-thumb { background: #1A2B4A; border-radius: 3px; }
-      .glow { box-shadow: 0 0 20px rgba(0, 200, 232, 0.15); }
-      .prose-dark p { margin-bottom: 0.75rem; line-height: 1.7; }
-      pre { white-space: pre-wrap; word-break: break-all; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { background: #050A14; color: #E2E8F0; font-family: 'Inter', system-ui; -webkit-font-smoothing: antialiased; }
+      ::-webkit-scrollbar { width: 4px; height: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #1A2F50; border-radius: 2px; }
+      ::-webkit-scrollbar-thumb:hover { background: #00D4FF44; }
+
+      .glass { background: rgba(15, 29, 53, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(0, 212, 255, 0.08); }
+      .glass-hover { transition: all 0.2s ease; }
+      .glass-hover:hover { background: rgba(0, 212, 255, 0.04); border-color: rgba(0, 212, 255, 0.2); transform: translateY(-1px); }
+
+      .glow-cyan { box-shadow: 0 0 20px rgba(0, 212, 255, 0.15); }
+      .glow-cyan-sm { box-shadow: 0 0 10px rgba(0, 212, 255, 0.2); }
+      .text-glow { text-shadow: 0 0 20px rgba(0, 212, 255, 0.4); }
+
+      .nav-link { transition: all 0.2s ease; position: relative; }
+      .nav-link::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 0; background: #00D4FF; border-radius: 0 2px 2px 0; transition: height 0.2s ease; }
+      .nav-link.active::before { height: 70%; }
+      .nav-link.active { color: #00D4FF; background: rgba(0, 212, 255, 0.06); }
+
+      .stat-card { transition: all 0.3s ease; }
+      .stat-card:hover { transform: translateY(-3px); border-color: rgba(0, 212, 255, 0.25); box-shadow: 0 8px 32px rgba(0, 212, 255, 0.08); }
+
+      .btn-primary { background: linear-gradient(135deg, #00D4FF, #0099BB); color: #050A14; font-weight: 600; transition: all 0.2s ease; }
+      .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0, 212, 255, 0.3); }
+      .btn-primary:active { transform: translateY(0); }
+
+      .page-enter { animation: fadeUp 0.35s ease forwards; }
+      .stagger-1 { animation-delay: 0.05s; opacity: 0; animation: fadeUp 0.4s ease 0.05s forwards; }
+      .stagger-2 { animation-delay: 0.1s; opacity: 0; animation: fadeUp 0.4s ease 0.1s forwards; }
+      .stagger-3 { animation-delay: 0.15s; opacity: 0; animation: fadeUp 0.4s ease 0.15s forwards; }
+      .stagger-4 { animation-delay: 0.2s; opacity: 0; animation: fadeUp 0.4s ease 0.2s forwards; }
+
+      input, textarea, select {
+        background: rgba(11, 20, 38, 0.8) !important;
+        border: 1px solid #1A2F50 !important;
+        color: #E2E8F0 !important;
+        border-radius: 10px !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+        outline: none !important;
+      }
+      input:focus, textarea:focus, select:focus {
+        border-color: rgba(0, 212, 255, 0.5) !important;
+        box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.08) !important;
+      }
+      input::placeholder, textarea::placeholder { color: #64748B !important; }
+      option { background: #0B1426; }
+
+      .severity-critical { color: #FF4D6D; background: rgba(255, 77, 109, 0.1); border-color: rgba(255, 77, 109, 0.25); }
+      .severity-high     { color: #FF8C42; background: rgba(255, 140, 66, 0.1); border-color: rgba(255, 140, 66, 0.25); }
+      .severity-medium   { color: #FFD166; background: rgba(255, 209, 102, 0.1); border-color: rgba(255, 209, 102, 0.25); }
+      .severity-low      { color: #06D6A0; background: rgba(6, 214, 160, 0.1); border-color: rgba(6, 214, 160, 0.25); }
+
+      .verdict-malicious  { color: #FF4D6D; background: rgba(255,77,109,0.1); border-color: rgba(255,77,109,0.3); }
+      .verdict-suspicious { color: #FF8C42; background: rgba(255,140,66,0.1); border-color: rgba(255,140,66,0.3); }
+      .verdict-clean      { color: #06D6A0; background: rgba(6,214,160,0.1); border-color: rgba(6,214,160,0.3); }
+      .verdict-not_found  { color: #64748B; background: rgba(100,116,139,0.1); border-color: rgba(100,116,139,0.2); }
+
+      @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+      @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+      @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+      .shimmer { background: linear-gradient(90deg, #1A2F50 25%, #243a5e 50%, #1A2F50 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+
+      .tab-active { color: #00D4FF; border-bottom: 2px solid #00D4FF; }
+      .tab-inactive { color: #64748B; border-bottom: 2px solid transparent; transition: all 0.2s; }
+      .tab-inactive:hover { color: #E2E8F0; }
+
+      .modal-backdrop { background: rgba(5, 10, 20, 0.85); backdrop-filter: blur(4px); }
+      .modal-card { animation: fadeUp 0.3s ease forwards; }
+
+      .progress-bar { transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+
+      .cyber-grid {
+        background-image: linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+                          linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
+      }
     </style>
   </head>
   <body>
