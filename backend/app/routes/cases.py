@@ -7,7 +7,7 @@ import json
 import uuid
 
 from app.models.database import Case, get_session
-from app.services.auth import get_current_user, User
+from app.services.auth import get_current_user, User  # noqa
 from app.services.groq_ai import generate_ai_summary
 from app.config import settings
 

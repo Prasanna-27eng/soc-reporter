@@ -3,7 +3,7 @@ from fastapi.responses import Response
 from sqlmodel import Session
 
 from app.models.database import Case, get_session
-from app.services.auth import get_current_user, User
+from app.services.auth import get_current_user, User  # noqa
 from app.services.report_gen import generate_pdf, generate_docx
 from app.routes.cases import case_to_dict
 

@@ -1,5 +1,7 @@
-class CurrentUser:
-    username = "analyst"
+from fastapi import Depends
 
-async def get_current_user():
-    return CurrentUser()
+class User:
+    username: str = "analyst"
+
+async def get_current_user() -> User:
+    return User()

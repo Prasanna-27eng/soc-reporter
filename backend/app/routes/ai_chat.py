@@ -6,7 +6,7 @@ import json
 import httpx
 
 from app.models.database import Case, get_session
-from app.services.auth import get_current_user, User
+from app.services.auth import get_current_user, User  # noqa
 from app.routes.cases import case_to_dict
 from app.config import settings
 
