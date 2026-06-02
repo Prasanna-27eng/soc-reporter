@@ -37,7 +37,8 @@ class Case(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-DATABASE_URL = "sqlite:///./soc_reporter.db"
+import os
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:////tmp/soc_reporter.db")
 engine = create_engine(DATABASE_URL, echo=False)
 
 def create_db():
