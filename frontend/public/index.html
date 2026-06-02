@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SOC Report Automator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'soc-bg': '#070B14',
+              'soc-surface': '#0D1526',
+              'soc-card': '#111D35',
+              'soc-border': '#1A2B4A',
+              'soc-cyan': '#00C8E8',
+              'soc-cyan-dim': '#0099B8',
+              'soc-purple': '#7C3AED',
+              'soc-text': '#CBD5E1',
+              'soc-muted': '#64748B',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      * { box-sizing: border-box; }
+      body { background: #070B14; color: #CBD5E1; font-family: 'Inter', system-ui, sans-serif; }
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: #0D1526; }
+      ::-webkit-scrollbar-thumb { background: #1A2B4A; border-radius: 3px; }
+      .glow { box-shadow: 0 0 20px rgba(0, 200, 232, 0.15); }
+      .prose-dark p { margin-bottom: 0.75rem; line-height: 1.7; }
+      pre { white-space: pre-wrap; word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
