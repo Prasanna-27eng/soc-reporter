@@ -37,8 +37,20 @@ class Case(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-# Always use /tmp — guaranteed writable on every platform
-DATABASE_URL = "sqlite:////tmp/soc_reporter.db"
+# Database path — configurable via DATABASE_URL env var.
+# For Render persistent disk: set DATABASE_URL=sqlite:////var/data/soc_reporter.db
+# and add a Render Disk mounted at /var/data in the Render dashboard.
+# Default falls back to /tmp (ephemeral — data lost on container restart).
+_raw_url = os.getenv("DATABASE_URL", "sqlite:////tmp/soc_reporter.db")
+
+# Auto-create directory for SQLite paths so startup never fails
+if _raw_url.startswith("sqlite:///"):
+    _db_path = _raw_url.replace("sqlite:///", "", 1)
+    _db_dir = os.path.dirname(_db_path)
+    if _db_dir and _db_dir not in ("/", "/tmp"):
+        os.makedirs(_db_dir, exist_ok=True)
+
+DATABASE_URL = _raw_url
 engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
 
 def create_db():

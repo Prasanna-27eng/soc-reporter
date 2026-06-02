@@ -1,116 +1,89 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Save, Sparkles, Download, MessageSquare,
-  Shield, Clock, List, FileText, Bot, CheckSquare,
-  Plus, Trash2, Copy, AlertTriangle, RefreshCw, ExternalLink
+  Shield, Clock, FileText, Bot, CheckSquare,
+  Trash2, Copy, AlertTriangle, RefreshCw, Check, Plus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
+// ── Design tokens ──────────────────────────────────────────────
+const C = {
+  bg:        '#0C0C0E',
+  surface:   '#18181B',
+  elevated:  '#1C1C1F',
+  border:    'rgba(255,255,255,0.07)',
+  borderHov: 'rgba(255,255,255,0.13)',
+  textPri:   '#F4F4F5',
+  textSec:   '#A1A1AA',
+  textMut:   '#52525B',
+  accent:    '#A78BFA',
+  accentBg:  'rgba(139,92,246,0.1)',
+  accentBor: 'rgba(139,92,246,0.25)',
+};
+
 const SEV = {
-  Critical: 'text-red-400 bg-red-400/10 border-red-400/20',
-  High: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  Medium: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
-  Low: 'text-green-400 bg-green-400/10 border-green-400/20',
+  Critical: { color: '#FCA5A5', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.2)' },
+  High:     { color: '#FDBA74', bg: 'rgba(249,115,22,0.1)', border: 'rgba(249,115,22,0.2)' },
+  Medium:   { color: '#FDE047', bg: 'rgba(234,179,8,0.1)',  border: 'rgba(234,179,8,0.2)' },
+  Low:      { color: '#86EFAC', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.2)' },
 };
 
 const VT_VERDICT = {
-  malicious: 'text-red-400 bg-red-400/10 border-red-400/20',
-  suspicious: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  clean: 'text-green-400 bg-green-400/10 border-green-400/20',
-  not_found: 'text-soc-muted bg-soc-surface border-soc-border',
-  error: 'text-soc-muted bg-soc-surface border-soc-border',
+  malicious:  { color: '#FCA5A5', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.2)' },
+  suspicious: { color: '#FDBA74', bg: 'rgba(249,115,22,0.1)', border: 'rgba(249,115,22,0.2)' },
+  clean:      { color: '#86EFAC', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.2)' },
+  not_found:  { color: '#71717A', bg: 'rgba(113,113,122,0.1)', border: 'rgba(113,113,122,0.2)' },
+  error:      { color: '#71717A', bg: 'rgba(113,113,122,0.1)', border: 'rgba(113,113,122,0.2)' },
 };
 
 const PLAYBOOKS = {
-  Ransomware: [
-    'Isolate affected systems from network immediately',
-    'Identify patient zero — first infected machine',
-    'Determine ransomware family and variant',
-    'Check for backup integrity and offsite copies',
-    'Identify lateral movement — other infected hosts',
-    'Collect memory dump and disk image from infected host',
-    'Analyse ransom note for IOCs (wallet address, contact email)',
-    'Check for data exfiltration before encryption',
-    'Notify management and legal team',
-    'Contact law enforcement if required',
-    'Begin recovery from clean backups',
-    'Patch initial entry point',
-  ],
-  Phishing: [
-    'Collect the phishing email headers and body',
-    'Extract all IOCs (URLs, IPs, attachments, sender domain)',
-    'Check if any users clicked links or opened attachments',
-    'Block sender domain and IPs at email gateway',
-    'Search email logs for other recipients',
-    'Check affected user accounts for signs of compromise',
-    'Reset credentials for users who interacted with email',
-    'Submit malicious URLs to URL filtering providers',
-    'Notify all users of phishing campaign',
-    'Document findings and close case',
-  ],
-  BEC: [
-    'Identify compromised email account(s)',
-    'Review email forwarding rules for suspicious rules',
-    'Check for inbox rule hiding replies from user',
-    'Review sent items and deleted items folders',
-    'Identify all external parties contacted by attacker',
-    'Check for fraudulent payment requests or wire transfers',
-    'Reset compromised account password and MFA',
-    'Revoke all active sessions on compromised account',
-    'Enable MFA if not already enabled',
-    'Review email gateway for auto-forwarding blocks',
-    'Notify finance team of any suspicious payment requests',
-    'File incident report with relevant authorities',
-  ],
-  'Insider Threat': [
-    'Identify the user and their access level',
-    'Collect DLP alerts and data access logs',
-    'Review recent file access, downloads, and USB activity',
-    'Check for large data transfers or cloud uploads',
-    'Review email activity for data sent externally',
-    'Collect HR information and recent employment changes',
-    'Preserve evidence with chain of custody',
-    'Disable account access pending investigation',
-    'Interview manager and relevant parties',
-    'Escalate to HR and Legal',
-  ],
-  Malware: [
-    'Isolate infected endpoint from network',
-    'Collect memory dump and process list',
-    'Extract malware sample for analysis',
-    'Submit hash to VirusTotal',
-    'Analyse persistence mechanisms (registry, scheduled tasks)',
-    'Check for C2 communications in network logs',
-    'Identify all affected systems',
-    'Check for lateral movement',
-    'Remove malware and persistence mechanisms',
-    'Patch exploited vulnerability',
-    'Verify clean state with AV scan',
-  ],
-  Other: [
-    'Document initial alert details',
-    'Triage and assess severity',
-    'Identify affected systems',
-    'Collect relevant logs',
-    'Analyse findings',
-    'Contain the threat',
-    'Remediate',
-    'Document and close',
-  ],
+  Ransomware:      ['Isolate affected systems from network immediately','Identify patient zero — first infected machine','Determine ransomware family and variant','Check backup integrity and offsite copies','Identify lateral movement to other hosts','Collect memory dump and disk image','Analyse ransom note for IOCs','Check for data exfiltration before encryption','Notify management and legal team','Begin recovery from clean backups','Patch initial entry point'],
+  Phishing:        ['Collect phishing email headers and body','Extract all IOCs (URLs, IPs, attachments, sender)','Check if any users clicked links or opened attachments','Block sender domain and IPs at email gateway','Search email logs for other recipients','Check affected accounts for compromise','Reset credentials for users who interacted','Submit malicious URLs to filtering providers','Notify all users of phishing campaign'],
+  BEC:             ['Identify compromised email account(s)','Review forwarding rules for suspicious rules','Check for inbox rules hiding replies','Review sent items and deleted items','Identify external parties contacted by attacker','Check for fraudulent payment requests','Reset compromised account password and MFA','Revoke all active sessions','Enable MFA if not already enabled','Notify finance team of suspicious payment requests'],
+  'Insider Threat':['Identify the user and access level','Collect DLP alerts and data access logs','Review recent file access and USB activity','Check for large data transfers or cloud uploads','Review email activity for data sent externally','Preserve evidence with chain of custody','Disable account access pending investigation','Escalate to HR and Legal'],
+  Malware:         ['Isolate infected endpoint from network','Collect memory dump and process list','Extract malware sample for analysis','Submit hash to VirusTotal','Analyse persistence mechanisms','Check for C2 communications in network logs','Identify all affected systems','Remove malware and persistence mechanisms','Patch exploited vulnerability'],
+  Other:           ['Document initial alert details','Triage and assess severity','Identify affected systems','Collect relevant logs','Analyse findings','Contain the threat','Remediate','Document and close'],
 };
 
 const TABS = [
-  { id: 'overview', label: 'Overview', icon: FileText },
+  { id: 'overview',      label: 'Overview',     icon: FileText },
   { id: 'investigation', label: 'Investigation', icon: Shield },
-  { id: 'iocs', label: 'IOCs', icon: AlertTriangle },
-  { id: 'timeline', label: 'Timeline', icon: Clock },
-  { id: 'playbook', label: 'Playbook', icon: CheckSquare },
-  { id: 'ai', label: 'AI Analysis', icon: Sparkles },
-  { id: 'chat', label: 'AI Chat', icon: MessageSquare },
-  { id: 'report', label: 'Report', icon: Download },
+  { id: 'iocs',          label: 'IOCs',          icon: AlertTriangle },
+  { id: 'timeline',      label: 'Timeline',      icon: Clock },
+  { id: 'playbook',      label: 'Playbook',      icon: CheckSquare },
+  { id: 'ai',            label: 'AI Analysis',   icon: Sparkles },
+  { id: 'chat',          label: 'AI Chat',       icon: MessageSquare },
+  { id: 'report',        label: 'Report',        icon: Download },
 ];
+
+function copyText(text) {
+  const doFallback = () => {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+    document.body.appendChild(el);
+    el.focus(); el.select();
+    try { document.execCommand('copy'); toast.success('Copied'); }
+    catch { toast.error('Copy failed — please select manually'); }
+    document.body.removeChild(el);
+  };
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => toast.success('Copied')).catch(doFallback);
+    } else { doFallback(); }
+  } catch { doFallback(); }
+}
+
+const inp = (mono) => ({
+  width: '100%', padding: '9px 12px',
+  background: C.elevated, border: `1px solid ${C.border}`,
+  borderRadius: 8, color: C.textPri, fontSize: 13,
+  fontFamily: mono ? "'JetBrains Mono', 'Fira Code', monospace" : 'inherit',
+  outline: 'none', boxSizing: 'border-box', resize: 'vertical',
+  transition: 'border-color 0.15s',
+});
 
 export default function CaseDetail() {
   const { id } = useParams();
@@ -118,7 +91,10 @@ export default function CaseDetail() {
   const [c, setC] = useState(null);
   const [tab, setTab] = useState('overview');
   const [saving, setSaving] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
   const [newIOC, setNewIOC] = useState('');
   const [vtLoading, setVtLoading] = useState({});
   const [newEvent, setNewEvent] = useState('');
@@ -127,31 +103,69 @@ export default function CaseDetail() {
   const [chatLoading, setChatLoading] = useState(false);
   const [playbook, setPlaybook] = useState({});
   const [correlations, setCorrelations] = useState({});
+  const autoSaveTimer = useRef(null);
+  const caseRef = useRef(null);
+  const chatEndRef = useRef(null);
 
   const load = useCallback(() =>
-    api.get(`/api/cases/${id}`).then(r => setC(r.data)),
+    api.get(`/api/cases/${id}`).then(r => { setC(r.data); caseRef.current = r.data; }),
     [id]
   );
 
   useEffect(() => { load(); }, [load]);
+
   useEffect(() => {
     if (c) {
       const steps = PLAYBOOKS[c.incident_type] || PLAYBOOKS.Other;
       setPlaybook(pb => {
         const fresh = {};
-        steps.forEach((s, i) => { fresh[i] = pb[i] ?? false; });
+        steps.forEach((_, i) => { fresh[i] = pb[i] ?? false; });
         return fresh;
       });
     }
   }, [c?.incident_type]);
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const scheduleAutoSave = useCallback(() => {
+    setDirty(true);
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      if (!caseRef.current) return;
+      try {
+        const cur = caseRef.current;
+        await api.put(`/api/cases/${id}`, {
+          title: cur.title, severity: cur.severity, status: cur.status,
+          incident_type: cur.incident_type, affected_systems: cur.affected_systems,
+          analyst_name: cur.analyst_name, customer_name: cur.customer_name,
+          classification: cur.classification, description: cur.description,
+          commands_run: cur.commands_run, findings: cur.findings,
+          recommendations: cur.recommendations,
+          iocs: Array.isArray(cur.iocs) ? cur.iocs : [],
+          timeline_events: Array.isArray(cur.timeline_events) ? cur.timeline_events : [],
+        });
+        setDirty(false);
+        setAutoSaved(true);
+        setTimeout(() => setAutoSaved(false), 2500);
+      } catch { /* silent */ }
+    }, 2000);
+  }, [id]);
+
   if (!c) return (
-    <div className="flex items-center justify-center h-screen text-soc-muted">Loading case...</div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: C.textMut, fontSize: 14 }}>
+      Loading case...
+    </div>
   );
 
-  const update = field => e => setC(prev => ({ ...prev, [field]: e.target.value }));
+  const update = field => e => {
+    const val = e.target.value;
+    setC(prev => { const next = { ...prev, [field]: val }; caseRef.current = next; return next; });
+    scheduleAutoSave();
+  };
 
-  const save = async () => {
+  const save = async (silent = false) => {
     setSaving(true);
     try {
       const res = await api.put(`/api/cases/${id}`, {
@@ -164,23 +178,27 @@ export default function CaseDetail() {
         iocs: Array.isArray(c.iocs) ? c.iocs : [],
         timeline_events: Array.isArray(c.timeline_events) ? c.timeline_events : [],
       });
-      setC(res.data);
-      toast.success('Case saved');
-    } catch { toast.error('Save failed'); }
+      setC(res.data); caseRef.current = res.data;
+      setDirty(false);
+      if (!silent) toast.success('Saved');
+    } catch { if (!silent) toast.error('Save failed'); }
     finally { setSaving(false); }
   };
 
   const generateAI = async () => {
     setAiLoading(true);
-    toast.loading('Generating detailed AI analysis — this takes 30-60 seconds...', { id: 'ai-gen', duration: 90000 });
+    setAiError('');
+    const tid = toast.loading('Generating AI analysis — 45–90 seconds…', { duration: 120000 });
     try {
-      await save();
+      await save(true);
       const res = await api.post(`/api/cases/${id}/generate-ai`);
-      setC(res.data);
-      toast.success('AI analysis complete', { id: 'ai-gen' });
+      setC(res.data); caseRef.current = res.data;
+      toast.success('AI analysis complete', { id: tid });
       setTab('ai');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'AI generation failed', { id: 'ai-gen' });
+      const msg = err.response?.data?.detail || err.message || 'AI generation failed';
+      setAiError(msg);
+      toast.error(msg, { id: tid });
     } finally { setAiLoading(false); }
   };
 
@@ -188,47 +206,50 @@ export default function CaseDetail() {
     if (!newIOC.trim()) return;
     const ioc = newIOC.trim();
     const updated = [...(c.iocs || []), ioc];
-    setC(prev => ({ ...prev, iocs: updated }));
+    setC(prev => { const next = { ...prev, iocs: updated }; caseRef.current = next; return next; });
     setNewIOC('');
-    // Auto VT lookup
+    scheduleAutoSave();
     vtLookup(ioc);
-    // Check correlation
     try {
       const r = await api.get(`/api/ioc/correlate/${encodeURIComponent(ioc)}`);
-      if (r.data.found_in_cases.length > 1) {
+      if (r.data.found_in_cases.length > 1)
         setCorrelations(prev => ({ ...prev, [ioc]: r.data.found_in_cases }));
-      }
     } catch {}
   };
 
-  const removeIOC = ioc => setC(prev => ({ ...prev, iocs: prev.iocs.filter(i => i !== ioc) }));
+  const removeIOC = ioc => {
+    setC(prev => { const next = { ...prev, iocs: prev.iocs.filter(i => i !== ioc) }; caseRef.current = next; return next; });
+    scheduleAutoSave();
+  };
 
   const vtLookup = async ioc => {
     setVtLoading(prev => ({ ...prev, [ioc]: true }));
     try {
       const res = await api.post('/api/ioc/lookup', { ioc, case_id: parseInt(id) });
-      setC(prev => ({
-        ...prev,
-        vt_results: { ...(prev.vt_results || {}), [ioc]: res.data }
-      }));
+      setC(prev => {
+        const next = { ...prev, vt_results: { ...(prev.vt_results || {}), [ioc]: res.data } };
+        caseRef.current = next; return next;
+      });
     } catch { toast.error(`VT lookup failed for ${ioc}`); }
     finally { setVtLoading(prev => ({ ...prev, [ioc]: false })); }
   };
 
   const defangAll = async () => {
-    const allIOCs = (c.iocs || []).join('\n');
     try {
-      const res = await api.post('/api/malware/defang', { text: allIOCs, defang: true });
-      toast.success('IOCs defanged — copied to clipboard');
-      navigator.clipboard.writeText(res.data.result);
-    } catch { toast.error('Defang failed'); }
+      const res = await api.post('/api/malware/defang', { text: (c.iocs || []).join('\n'), defang: true });
+      copyText(res.data.result);
+    } catch { copyText((c.iocs || []).join('\n')); }
   };
 
   const addTimelineEvent = () => {
     if (!newEvent.trim()) return;
     const ts = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-    setC(prev => ({ ...prev, timeline_events: [...(prev.timeline_events || []), `[${ts}] ${newEvent.trim()}`] }));
+    setC(prev => {
+      const next = { ...prev, timeline_events: [...(prev.timeline_events || []), `[${ts}] ${newEvent.trim()}`] };
+      caseRef.current = next; return next;
+    });
     setNewEvent('');
+    scheduleAutoSave();
   };
 
   const sendChat = async () => {
@@ -241,221 +262,219 @@ export default function CaseDetail() {
     try {
       const res = await api.post('/api/chat/case', { case_id: parseInt(id), messages: msgs });
       setChatMessages([...msgs, { role: 'assistant', content: res.data.reply }]);
-    } catch { toast.error('AI chat failed'); }
-    finally { setChatLoading(false); }
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'AI Chat failed — check GROQ_API_KEY in Render env vars';
+      toast.error(detail);
+      setChatMessages([...msgs, { role: 'assistant', content: `⚠ ${detail}` }]);
+    } finally { setChatLoading(false); }
   };
 
+  const downloadReport = async fmt => {
+    if (!c.ai_executive_summary) {
+      const tid = toast.loading('Generating AI summary first…', { duration: 120000 });
+      try {
+        await save(true);
+        const res = await api.post(`/api/cases/${id}/generate-ai`);
+        setC(res.data); caseRef.current = res.data;
+        toast.success('AI ready — downloading…', { id: tid });
+      } catch { toast.error('AI generation failed. Downloading with available data.', { id: tid }); }
+    }
+    window.open(`/api/reports/${id}/${fmt}`, '_blank');
+  };
+
+  const sev = SEV[c.severity] || SEV.Low;
   const vtResults = c.vt_results || {};
   const playSteps = PLAYBOOKS[c.incident_type] || PLAYBOOKS.Other;
   const completedSteps = Object.values(playbook).filter(Boolean).length;
 
+  const Field = ({ label, field, type = 'input', rows, placeholder, mono }) => (
+    <div>
+      <label style={{ display: 'block', fontSize: 11, color: C.textMut, marginBottom: 6, fontWeight: 500, letterSpacing: '0.03em' }}>{label}</label>
+      {type === 'input'
+        ? <input value={c[field] || ''} onChange={update(field)} placeholder={placeholder} style={inp(mono)}
+            onFocus={e => e.target.style.borderColor = C.accentBor}
+            onBlur={e => e.target.style.borderColor = C.border} />
+        : <textarea value={c[field] || ''} onChange={update(field)} rows={rows || 5} placeholder={placeholder}
+            style={{ ...inp(mono), resize: 'vertical' }}
+            onFocus={e => e.target.style.borderColor = C.accentBor}
+            onBlur={e => e.target.style.borderColor = C.border} />
+      }
+    </div>
+  );
+
+  const Sel = ({ label, field, options }) => (
+    <div>
+      <label style={{ display: 'block', fontSize: 11, color: C.textMut, marginBottom: 6, fontWeight: 500 }}>{label}</label>
+      <select value={c[field] || ''} onChange={update(field)}
+        style={{ ...inp(), resize: 'none', cursor: 'pointer' }}>
+        {options.map(o => <option key={o} style={{ background: '#1C1C1F' }}>{o}</option>)}
+      </select>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-screen bg-soc-bg">
-      {/* Top bar */}
-      <div className="bg-soc-surface border-b border-soc-border px-6 py-3 flex items-center gap-4 shrink-0">
-        <button onClick={() => navigate('/cases')} className="text-soc-muted hover:text-white transition-colors">
-          <ArrowLeft size={18} />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.bg, overflow: 'hidden' }}>
+
+      {/* ── Top bar ── */}
+      <div style={{ background: '#111114', borderBottom: `1px solid ${C.border}`, padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <button onClick={() => { save(true); navigate('/cases'); }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMut, padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
+          onMouseEnter={e => e.currentTarget.style.color = C.textPri}
+          onMouseLeave={e => e.currentTarget.style.color = C.textMut}>
+          <ArrowLeft size={17} />
         </button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-soc-cyan">{c.case_number}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${SEV[c.severity] || SEV.Low}`}>{c.severity}</span>
-            <select value={c.status} onChange={update('status')}
-              className="text-xs bg-transparent border-none text-soc-muted focus:outline-none cursor-pointer">
-              {['Open', 'In Progress', 'Closed'].map(s => <option key={s}>{s}</option>)}
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, color: C.accent }}>{c.case_number}</span>
+            <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: `1px solid ${sev.border}`, background: sev.bg, color: sev.color }}>{c.severity}</span>
+            <select value={c.status} onChange={update('status')} style={{
+              fontSize: 11, background: 'transparent', border: 'none', cursor: 'pointer', outline: 'none', fontWeight: 500,
+              color: c.status === 'Open' ? '#EF4444' : c.status === 'In Progress' ? '#EAB308' : '#22C55E',
+            }}>
+              {['Open','In Progress','Closed'].map(s => <option key={s} style={{ background: '#1C1C1F', color: '#F4F4F5' }}>{s}</option>)}
             </select>
           </div>
-          <h1 className="text-base font-bold text-white truncate mt-0.5">{c.title}</h1>
+          <p style={{ fontSize: 14, fontWeight: 600, color: C.textPri, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={generateAI} disabled={aiLoading}
-            className="flex items-center gap-1.5 bg-soc-purple/20 text-purple-400 border border-purple-400/30 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-soc-purple/30 transition-colors disabled:opacity-50">
-            {aiLoading ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
-            {aiLoading ? 'Generating...' : 'Generate AI'}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {autoSaved && <span style={{ fontSize: 11, color: '#22C55E', display: 'flex', alignItems: 'center', gap: 4 }}><Check size={12} /> Saved</span>}
+          {dirty && !autoSaved && <span style={{ fontSize: 11, color: '#EAB308' }}>Unsaved</span>}
+          <button onClick={generateAI} disabled={aiLoading} style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8,
+            border: `1px solid ${C.accentBor}`, background: C.accentBg, color: C.accent,
+            fontSize: 12, fontWeight: 500, cursor: aiLoading ? 'not-allowed' : 'pointer', opacity: aiLoading ? 0.7 : 1, transition: 'opacity 0.15s',
+          }}>
+            {aiLoading ? <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={13} />}
+            {aiLoading ? 'Generating…' : 'Generate AI'}
           </button>
-          <button onClick={save} disabled={saving}
-            className="flex items-center gap-1.5 bg-soc-cyan/20 text-soc-cyan border border-soc-cyan/30 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-soc-cyan/30 transition-colors disabled:opacity-50">
-            <Save size={13} /> {saving ? 'Saving...' : 'Save'}
+          <button onClick={() => save(false)} disabled={saving} style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8,
+            border: `1px solid rgba(255,255,255,0.1)`, background: 'rgba(255,255,255,0.04)', color: C.textSec,
+            fontSize: 12, fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.15s',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+          >
+            <Save size={13} /> {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-soc-surface border-b border-soc-border px-6 shrink-0">
-        <div className="flex gap-1 overflow-x-auto">
-          {TABS.map(({ id: tid, label, icon: Icon }) => (
-            <button key={tid} onClick={() => setTab(tid)}
-              className={`flex items-center gap-1.5 px-3 py-3 text-xs font-medium border-b-2 whitespace-nowrap transition-colors ${
-                tab === tid
-                  ? 'border-soc-cyan text-soc-cyan'
-                  : 'border-transparent text-soc-muted hover:text-soc-text'
-              }`}>
-              <Icon size={13} /> {label}
-              {tid === 'iocs' && c.iocs?.length > 0 && (
-                <span className="bg-soc-cyan/20 text-soc-cyan text-xs px-1.5 rounded-full">{c.iocs.length}</span>
-              )}
-              {tid === 'playbook' && (
-                <span className="bg-soc-cyan/20 text-soc-cyan text-xs px-1.5 rounded-full">{completedSteps}/{playSteps.length}</span>
-              )}
-            </button>
-          ))}
-        </div>
+      {/* ── Tabs ── */}
+      <div style={{ background: '#111114', borderBottom: `1px solid ${C.border}`, padding: '0 20px', display: 'flex', gap: 0, overflowX: 'auto', flexShrink: 0 }}>
+        {TABS.map(({ id: tid, label, icon: Icon }) => (
+          <button key={tid} onClick={() => setTab(tid)} style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', fontSize: 12, fontWeight: 500,
+            background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+            borderBottom: tab === tid ? `2px solid ${C.accent}` : '2px solid transparent',
+            color: tab === tid ? C.accent : C.textMut, transition: 'all 0.15s',
+          }}
+            onMouseEnter={e => { if (tab !== tid) e.currentTarget.style.color = C.textSec; }}
+            onMouseLeave={e => { if (tab !== tid) e.currentTarget.style.color = C.textMut; }}
+          >
+            <Icon size={13} />
+            {label}
+            {tid === 'iocs' && c.iocs?.length > 0 && (
+              <span style={{ fontSize: 10, background: C.accentBg, color: C.accent, padding: '1px 6px', borderRadius: 10, border: `1px solid ${C.accentBor}` }}>{c.iocs.length}</span>
+            )}
+            {tid === 'playbook' && (
+              <span style={{ fontSize: 10, background: C.accentBg, color: C.accent, padding: '1px 6px', borderRadius: 10, border: `1px solid ${C.accentBor}` }}>{completedSteps}/{playSteps.length}</span>
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      {/* ── Content ── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
 
-        {/* ── OVERVIEW ── */}
+        {/* OVERVIEW */}
         {tab === 'overview' && (
-          <div className="max-w-3xl space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-soc-muted mb-1.5">Title</label>
-                <input value={c.title} onChange={update('title')}
-                  className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-soc-cyan" />
-              </div>
-              <div>
-                <label className="block text-xs text-soc-muted mb-1.5">Incident Type</label>
-                <select value={c.incident_type} onChange={update('incident_type')}
-                  className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan">
-                  {['Ransomware', 'Phishing', 'BEC', 'Insider Threat', 'Malware', 'Data Breach', 'Other'].map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-soc-muted mb-1.5">Severity</label>
-                <select value={c.severity} onChange={update('severity')}
-                  className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan">
-                  {['Critical', 'High', 'Medium', 'Low'].map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-soc-muted mb-1.5">Classification</label>
-                <select value={c.classification} onChange={update('classification')}
-                  className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan">
-                  {['TLP:RED', 'TLP:AMBER', 'TLP:GREEN', 'TLP:WHITE'].map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-soc-muted mb-1.5">Analyst Name</label>
-                <input value={c.analyst_name || ''} onChange={update('analyst_name')}
-                  className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan" />
-              </div>
-              <div>
-                <label className="block text-xs text-soc-muted mb-1.5">Customer Name</label>
-                <input value={c.customer_name || ''} onChange={update('customer_name')}
-                  className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan" />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs text-soc-muted mb-1.5">Affected Systems</label>
-                <input value={c.affected_systems || ''} onChange={update('affected_systems')}
-                  placeholder="e.g. WORKSTATION-01, email gateway"
-                  className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan" />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs text-soc-muted mb-1.5">Description</label>
-                <textarea value={c.description || ''} onChange={update('description')} rows={5}
-                  placeholder="Describe what happened, when it was detected, and initial observations..."
-                  className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan resize-none" />
-              </div>
-            </div>
+          <div style={{ maxWidth: 760, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ gridColumn: '1 / -1' }}><Field label="TITLE" field="title" placeholder="e.g. Phishing attack targeting finance team" /></div>
+            <Sel label="SEVERITY" field="severity" options={['Critical','High','Medium','Low']} />
+            <Sel label="INCIDENT TYPE" field="incident_type" options={['Ransomware','Phishing','BEC','Insider Threat','Malware','Data Breach','Other']} />
+            <Sel label="CLASSIFICATION" field="classification" options={['TLP:RED','TLP:AMBER','TLP:GREEN','TLP:WHITE']} />
+            <Sel label="STATUS" field="status" options={['Open','In Progress','Closed']} />
+            <Field label="ANALYST NAME" field="analyst_name" placeholder="Prasanna Kumar" />
+            <Field label="CUSTOMER NAME" field="customer_name" placeholder="Acme Corp" />
+            <div style={{ gridColumn: '1 / -1' }}><Field label="AFFECTED SYSTEMS" field="affected_systems" placeholder="WORKSTATION-01, email gateway, DC01" /></div>
+            <div style={{ gridColumn: '1 / -1' }}><Field label="DESCRIPTION" field="description" type="textarea" rows={5} placeholder="Describe what happened, when detected, and initial observations…" /></div>
           </div>
         )}
 
-        {/* ── INVESTIGATION ── */}
+        {/* INVESTIGATION */}
         {tab === 'investigation' && (
-          <div className="max-w-3xl space-y-5">
-            <div>
-              <label className="block text-xs text-soc-muted mb-1.5">Commands Run During Investigation</label>
-              <p className="text-xs text-soc-muted mb-2">Document every command you ran — tools used, queries, scripts. Be specific.</p>
-              <textarea value={c.commands_run || ''} onChange={update('commands_run')} rows={8}
-                placeholder={'e.g.\nGet-Process | Where-Object {$_.CPU -gt 100}\nnetstat -an | grep ESTABLISHED\ncat /var/log/auth.log | grep "Failed password"\nvirustotal --file malware.exe'}
-                className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text font-mono focus:outline-none focus:border-soc-cyan resize-none" />
-            </div>
-            <div>
-              <label className="block text-xs text-soc-muted mb-1.5">Analyst Findings</label>
-              <p className="text-xs text-soc-muted mb-2">Document everything you found — be detailed. This is the core of your report.</p>
-              <textarea value={c.findings || ''} onChange={update('findings')} rows={10}
-                placeholder={'e.g.\n- Malicious process cmd.exe spawned by excel.exe at 14:23 UTC\n- C2 beacon observed to 185.220.101.45 every 5 minutes\n- Scheduled task "WindowsUpdate" created for persistence\n- Lateral movement detected to FILESERVER-02\n- 2.3GB data exfiltrated to external FTP server'}
-                className="w-full bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan resize-none" />
-            </div>
+          <div style={{ maxWidth: 760, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Field label="COMMANDS RUN" field="commands_run" type="textarea" rows={8} mono
+              placeholder={'nmap -sV 185.220.101.45\nGet-Process | Where-Object {$_.CPU -gt 100}\nnetstat -an | grep ESTABLISHED'} />
+            <Field label="ANALYST FINDINGS" field="findings" type="textarea" rows={14}
+              placeholder={'Document everything you found:\n\n- Malicious process cmd.exe spawned by excel.exe at 14:23 UTC\n- C2 beacon observed every 5 minutes\n- Scheduled task created for persistence'} />
           </div>
         )}
 
-        {/* ── IOCs ── */}
+        {/* IOCs */}
         {tab === 'iocs' && (
-          <div className="max-w-3xl space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">Indicators of Compromise</h2>
-              <button onClick={defangAll} className="text-xs text-soc-muted hover:text-soc-cyan border border-soc-border px-3 py-1.5 rounded-lg transition-colors">
-                Defang All (Copy)
-              </button>
+          <div style={{ maxWidth: 760 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 600, color: C.textPri, margin: 0 }}>Indicators of Compromise</h2>
+              <button onClick={defangAll} style={{ fontSize: 11, color: C.textMut, background: C.elevated, border: `1px solid ${C.border}`, padding: '5px 12px', borderRadius: 7, cursor: 'pointer', transition: 'color 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.color = C.textSec}
+                onMouseLeave={e => e.currentTarget.style.color = C.textMut}>Defang All (Copy)</button>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input value={newIOC} onChange={e => setNewIOC(e.target.value)} onKeyDown={e => e.key === 'Enter' && addIOC()}
+                placeholder="Paste IP, hash (MD5/SHA256), domain, or URL…"
+                style={{ ...inp(true), flex: 1, resize: 'none' }}
+                onFocus={e => e.target.style.borderColor = C.accentBor}
+                onBlur={e => e.target.style.borderColor = C.border} />
+              <button onClick={addIOC} style={{
+                padding: '9px 18px', borderRadius: 8, background: C.accent, color: '#fff',
+                fontWeight: 600, fontSize: 12, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                transition: 'opacity 0.15s',
+              }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >Add + Lookup</button>
             </div>
 
-            <div className="flex gap-2">
-              <input value={newIOC} onChange={e => setNewIOC(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addIOC()}
-                placeholder="Paste IP, hash, domain, or URL — press Enter"
-                className="flex-1 bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text font-mono focus:outline-none focus:border-soc-cyan" />
-              <button onClick={addIOC} className="bg-soc-cyan text-soc-bg px-4 py-2 rounded-lg text-sm font-semibold hover:bg-soc-cyan-dim">
-                Add + Lookup
-              </button>
-            </div>
-
-            <div className="space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {(!c.iocs || c.iocs.length === 0) ? (
-                <div className="text-center py-8 text-soc-muted text-sm bg-soc-card border border-soc-border rounded-xl">
-                  No IOCs added yet. Add them above.
+                <div style={{ textAlign: 'center', padding: 40, color: C.textMut, fontSize: 13, background: C.surface, borderRadius: 12, border: `1px solid ${C.border}` }}>
+                  No IOCs added yet.
                 </div>
               ) : c.iocs.map(ioc => {
                 const vt = vtResults[ioc] || {};
-                const loading = vtLoading[ioc];
+                const lv = vtLoading[ioc];
+                const vc = VT_VERDICT[vt.verdict] || VT_VERDICT.not_found;
                 const corr = correlations[ioc];
                 return (
-                  <div key={ioc} className="bg-soc-card border border-soc-border rounded-xl overflow-hidden">
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <span className="font-mono text-sm text-white flex-1 truncate">{ioc}</span>
-                      {loading ? (
-                        <span className="text-xs text-soc-muted animate-pulse">Looking up...</span>
-                      ) : vt.verdict ? (
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${VT_VERDICT[vt.verdict] || VT_VERDICT.error}`}>
-                          {vt.verdict.toUpperCase()}
-                        </span>
-                      ) : (
-                        <button onClick={() => vtLookup(ioc)} className="text-xs text-soc-cyan hover:underline">VT Lookup</button>
-                      )}
-                      <button onClick={() => { navigator.clipboard.writeText(ioc); toast.success('Copied'); }}
-                        className="text-soc-muted hover:text-soc-text"><Copy size={13} /></button>
-                      <button onClick={() => removeIOC(ioc)} className="text-soc-muted hover:text-red-400"><Trash2 size={13} /></button>
+                  <div key={ioc} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#D4D4D8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ioc}</span>
+                      {lv ? <span style={{ fontSize: 11, color: C.textMut }}>Looking up…</span>
+                        : vt.verdict
+                          ? <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 20, border: `1px solid ${vc.border}`, background: vc.bg, color: vc.color, fontWeight: 700 }}>{vt.verdict.toUpperCase()}</span>
+                          : <button onClick={() => vtLookup(ioc)} style={{ fontSize: 11, color: C.accent, background: 'none', border: 'none', cursor: 'pointer' }}>VT Lookup</button>}
+                      <button onClick={() => copyText(ioc)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMut, padding: 4, transition: 'color 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.color = C.textSec}
+                        onMouseLeave={e => e.currentTarget.style.color = C.textMut}><Copy size={13} /></button>
+                      <button onClick={() => removeIOC(ioc)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMut, padding: 4, transition: 'color 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#EF4444'}
+                        onMouseLeave={e => e.currentTarget.style.color = C.textMut}><Trash2 size={13} /></button>
                     </div>
-
                     {corr && corr.length > 1 && (
-                      <div className="px-4 py-2 bg-yellow-400/5 border-t border-yellow-400/20 text-xs text-yellow-400">
-                        ⚠ Seen in {corr.length - 1} other case(s): {corr.filter(cc => cc.case_id !== parseInt(id)).map(cc => cc.case_number).join(', ')}
+                      <div style={{ padding: '6px 14px', background: 'rgba(234,179,8,0.05)', borderTop: '1px solid rgba(234,179,8,0.15)', fontSize: 11, color: '#FDE047' }}>
+                        ⚠ Also seen in: {corr.filter(cc => cc.case_id !== parseInt(id)).map(cc => cc.case_number).join(', ')}
                       </div>
                     )}
-
-                    {vt.verdict && !loading && (
-                      <div className="px-4 py-3 bg-soc-surface border-t border-soc-border text-xs text-soc-muted space-y-1">
-                        {vt.type && <span className="mr-4">Type: <span className="text-soc-text">{vt.type}</span></span>}
-                        {vt.total_engines && <span className="mr-4">Detections: <span className={vt.malicious_count > 0 ? 'text-red-400' : 'text-green-400'}>{vt.malicious_count}/{vt.total_engines}</span></span>}
-                        {vt.country && <span className="mr-4">Country: <span className="text-soc-text">{vt.country}</span></span>}
-                        {vt.as_owner && <span className="mr-4">ASN: <span className="text-soc-text">{vt.as_owner}</span></span>}
-                        {vt.file_name && <span className="mr-4">File: <span className="text-soc-text">{vt.file_name}</span></span>}
-                        {vt.file_type && <span className="mr-4">Type: <span className="text-soc-text">{vt.file_type}</span></span>}
-                        {vt.sha256 && <div className="font-mono mt-1">SHA256: <span className="text-soc-text break-all">{vt.sha256}</span></div>}
-                        {vt.registrar && <span className="mr-4">Registrar: <span className="text-soc-text">{vt.registrar}</span></span>}
-                        {Object.keys(vt.last_analysis_results || {}).length > 0 && (
-                          <div className="mt-2">
-                            <p className="text-xs text-soc-muted mb-1">Flagged by:</p>
-                            <div className="flex flex-wrap gap-1">
-                              {Object.entries(vt.last_analysis_results).slice(0, 8).map(([engine, r]) => (
-                                <span key={engine} className="text-xs bg-red-400/10 text-red-400 px-2 py-0.5 rounded">
-                                  {engine}: {r.result || r.category}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                    {vt.verdict && !lv && (
+                      <div style={{ padding: '8px 14px', background: 'rgba(0,0,0,0.25)', borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.textMut, display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
+                        {vt.total_engines && <span>Detections: <span style={{ color: vt.malicious_count > 0 ? '#EF4444' : '#22C55E', fontWeight: 600 }}>{vt.malicious_count}/{vt.total_engines}</span></span>}
+                        {vt.country && <span>Country: <span style={{ color: C.textSec }}>{vt.country}</span></span>}
+                        {vt.as_owner && <span>ASN: <span style={{ color: C.textSec }}>{vt.as_owner}</span></span>}
+                        {vt.sha256 && <span style={{ fontFamily: 'monospace', fontSize: 10, width: '100%' }}>SHA256: <span style={{ color: C.textSec }}>{vt.sha256}</span></span>}
                       </div>
                     )}
                   </div>
@@ -465,241 +484,256 @@ export default function CaseDetail() {
           </div>
         )}
 
-        {/* ── TIMELINE ── */}
+        {/* TIMELINE */}
         {tab === 'timeline' && (
-          <div className="max-w-3xl space-y-4">
-            <h2 className="text-sm font-semibold text-white">Attack Timeline</h2>
-            <div className="flex gap-2">
-              <input value={newEvent} onChange={e => setNewEvent(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addTimelineEvent()}
-                placeholder="Describe what happened (timestamp auto-added)..."
-                className="flex-1 bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan" />
-              <button onClick={addTimelineEvent} className="bg-soc-cyan text-soc-bg px-4 py-2 rounded-lg text-sm font-semibold hover:bg-soc-cyan-dim">Add</button>
+          <div style={{ maxWidth: 760 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 600, color: C.textPri, marginBottom: 16 }}>Attack Timeline</h2>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input value={newEvent} onChange={e => setNewEvent(e.target.value)} onKeyDown={e => e.key === 'Enter' && addTimelineEvent()}
+                placeholder="Describe what happened — timestamp added automatically…"
+                style={{ ...inp(), flex: 1, resize: 'none' }}
+                onFocus={e => e.target.style.borderColor = C.accentBor}
+                onBlur={e => e.target.style.borderColor = C.border} />
+              <button onClick={addTimelineEvent} style={{ padding: '9px 18px', borderRadius: 8, background: C.accent, color: '#fff', fontWeight: 600, fontSize: 12, border: 'none', cursor: 'pointer' }}>Add</button>
             </div>
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {(!c.timeline_events || c.timeline_events.length === 0) ? (
-                <div className="text-center py-8 text-soc-muted text-sm bg-soc-card border border-soc-border rounded-xl">No events yet.</div>
+                <div style={{ textAlign: 'center', padding: 40, color: C.textMut, fontSize: 13, background: C.surface, borderRadius: 12, border: `1px solid ${C.border}` }}>No events yet.</div>
               ) : c.timeline_events.map((ev, i) => (
-                <div key={i} className="flex items-start gap-3 bg-soc-card border border-soc-border rounded-lg px-4 py-3">
-                  <div className="w-2 h-2 rounded-full bg-soc-cyan mt-1.5 shrink-0" />
-                  <span className="text-sm text-soc-text flex-1">{ev}</span>
-                  <button onClick={() => setC(prev => ({ ...prev, timeline_events: prev.timeline_events.filter((_, idx) => idx !== i) }))}
-                    className="text-soc-muted hover:text-red-400"><Trash2 size={13} /></button>
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.accent, flexShrink: 0, marginTop: 5 }} />
+                  <span style={{ fontSize: 13, color: C.textSec, flex: 1 }}>{ev}</span>
+                  <button onClick={() => {
+                    setC(prev => { const next = { ...prev, timeline_events: prev.timeline_events.filter((_, idx) => idx !== i) }; caseRef.current = next; return next; });
+                    scheduleAutoSave();
+                  }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMut, padding: 4, transition: 'color 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#EF4444'}
+                    onMouseLeave={e => e.currentTarget.style.color = C.textMut}><Trash2 size={13} /></button>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ── PLAYBOOK ── */}
+        {/* PLAYBOOK */}
         {tab === 'playbook' && (
-          <div className="max-w-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-white">{c.incident_type} Investigation Playbook</h2>
-              <span className="text-xs text-soc-muted">{completedSteps}/{playSteps.length} completed</span>
+          <div style={{ maxWidth: 640 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 600, color: C.textPri, margin: 0 }}>{c.incident_type} Playbook</h2>
+              <span style={{ fontSize: 12, color: C.textMut }}>{completedSteps}/{playSteps.length} steps</span>
             </div>
-            <div className="h-1.5 bg-soc-card rounded-full mb-5 overflow-hidden">
-              <div className="h-full bg-soc-cyan rounded-full transition-all duration-300"
-                style={{ width: `${(completedSteps / playSteps.length) * 100}%` }} />
+            <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, marginBottom: 16, overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: C.accent, width: `${(completedSteps / playSteps.length) * 100}%`, transition: 'width 0.4s ease', borderRadius: 2 }} />
             </div>
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {playSteps.map((step, i) => (
-                <div key={i}
-                  onClick={() => setPlaybook(pb => ({ ...pb, [i]: !pb[i] }))}
-                  className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                    playbook[i]
-                      ? 'bg-soc-cyan/5 border-soc-cyan/30 opacity-60'
-                      : 'bg-soc-card border-soc-border hover:border-soc-cyan/30'
-                  }`}>
-                  <div className={`w-5 h-5 rounded border shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
-                    playbook[i] ? 'bg-soc-cyan border-soc-cyan' : 'border-soc-border'
-                  }`}>
-                    {playbook[i] && <span className="text-soc-bg text-xs font-bold">✓</span>}
+                <div key={i} onClick={() => setPlaybook(pb => ({ ...pb, [i]: !pb[i] }))} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
+                  border: `1px solid ${playbook[i] ? C.accentBor : C.border}`,
+                  background: playbook[i] ? C.accentBg : C.surface,
+                  transition: 'all 0.15s',
+                }}>
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                    border: `1.5px solid ${playbook[i] ? C.accent : C.textMut}`,
+                    background: playbook[i] ? C.accent : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.15s',
+                  }}>
+                    {playbook[i] && <Check size={11} color="#fff" strokeWidth={3} />}
                   </div>
-                  <span className={`text-sm ${playbook[i] ? 'line-through text-soc-muted' : 'text-soc-text'}`}>{step}</span>
+                  <span style={{ fontSize: 13, color: playbook[i] ? C.textMut : C.textSec, textDecoration: playbook[i] ? 'line-through' : 'none' }}>{step}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ── AI ANALYSIS ── */}
+        {/* AI ANALYSIS */}
         {tab === 'ai' && (
-          <div className="max-w-4xl space-y-6">
+          <div style={{ maxWidth: 840 }}>
+            {aiError && (
+              <div style={{ marginBottom: 16, padding: '14px 16px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12 }}>
+                <p style={{ color: '#FCA5A5', fontWeight: 600, margin: '0 0 6px', fontSize: 13 }}>AI Generation Failed</p>
+                <p style={{ color: C.textSec, margin: '0 0 8px', fontSize: 12 }}>{aiError}</p>
+                <p style={{ color: C.textMut, margin: 0, fontSize: 12 }}>
+                  Go to <strong style={{ color: C.textSec }}>Render Dashboard → Your Service → Environment</strong> and add <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>GROQ_API_KEY</code> — get a free key at <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" style={{ color: C.accent }}>console.groq.com</a>.
+                </p>
+              </div>
+            )}
+
             {!c.ai_executive_summary && !aiLoading && (
-              <div className="bg-soc-card border border-soc-border rounded-xl p-8 text-center">
-                <Sparkles className="mx-auto mb-3 text-purple-400" size={36} />
-                <p className="text-white font-medium mb-1">No AI analysis yet</p>
-                <p className="text-soc-muted text-sm mb-4">Fill in the description, findings, and IOCs first, then generate.</p>
-                <button onClick={generateAI} className="bg-soc-purple/20 text-purple-400 border border-purple-400/30 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-soc-purple/30 transition-colors">
-                  Generate AI Analysis
-                </button>
+              <div style={{ textAlign: 'center', padding: 56, background: C.surface, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+                <Sparkles size={36} style={{ color: C.accent, margin: '0 auto 14px', display: 'block' }} />
+                <p style={{ color: C.textPri, fontWeight: 600, margin: '0 0 6px' }}>No AI analysis yet</p>
+                <p style={{ color: C.textMut, fontSize: 12, margin: '0 0 20px' }}>Fill in findings and IOCs first for best results.</p>
+                <button onClick={generateAI} style={{
+                  padding: '10px 24px', borderRadius: 9, border: `1px solid ${C.accentBor}`,
+                  background: C.accentBg, color: C.accent, fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                }}>Generate AI Analysis</button>
               </div>
             )}
 
             {c.ai_severity_score > 0 && (
-              <div className="bg-soc-card border border-soc-border rounded-xl p-5">
-                <div className="flex items-center gap-6">
-                  <div className="text-center">
-                    <div className={`text-4xl font-bold ${
-                      c.ai_severity_score >= 75 ? 'text-red-400' :
-                      c.ai_severity_score >= 50 ? 'text-orange-400' :
-                      c.ai_severity_score >= 25 ? 'text-yellow-400' : 'text-green-400'
-                    }`}>{c.ai_severity_score}</div>
-                    <div className="text-xs text-soc-muted">/ 100 Risk Score</div>
+              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 20 }}>
+                <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                  <div style={{ fontSize: 40, fontWeight: 800, lineHeight: 1, color: c.ai_severity_score >= 75 ? '#EF4444' : c.ai_severity_score >= 50 ? '#F97316' : c.ai_severity_score >= 25 ? '#EAB308' : '#22C55E' }}>
+                    {c.ai_severity_score}
                   </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-soc-muted mb-1">AI Severity Reasoning</p>
-                    <p className="text-sm text-soc-text">{c.ai_severity_reasoning}</p>
-                  </div>
+                  <div style={{ fontSize: 10, color: C.textMut, marginTop: 2 }}>/ 100 RISK</div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 11, color: C.textMut, margin: '0 0 4px' }}>AI SEVERITY REASONING</p>
+                  <p style={{ fontSize: 12, color: C.textSec, lineHeight: 1.6, margin: 0 }}>{c.ai_severity_reasoning}</p>
                 </div>
               </div>
             )}
 
-            {c.ai_executive_summary && (
-              <div className="bg-soc-card border border-soc-border rounded-xl">
-                <div className="flex items-center justify-between px-5 py-3 border-b border-soc-border">
-                  <h3 className="text-sm font-semibold text-white">Executive Summary</h3>
-                  <button onClick={() => { navigator.clipboard.writeText(c.ai_executive_summary); toast.success('Copied'); }}
-                    className="text-soc-muted hover:text-soc-text"><Copy size={14} /></button>
+            {[
+              { label: 'Executive Summary', field: 'ai_executive_summary' },
+              { label: 'Technical Analysis', field: 'ai_technical_summary' },
+              { label: 'Recommendations',   field: 'recommendations' },
+            ].map(({ label, field }) => c[field] && (
+              <div key={field} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>{label}</span>
+                  <button onClick={() => copyText(c[field])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMut, padding: 4, transition: 'color 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = C.textSec}
+                    onMouseLeave={e => e.currentTarget.style.color = C.textMut}><Copy size={14} /></button>
                 </div>
-                <div className="p-5 prose-dark text-sm text-soc-text leading-relaxed whitespace-pre-wrap">{c.ai_executive_summary}</div>
+                <div style={{ padding: 16, fontSize: 13, color: C.textSec, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{c[field]}</div>
               </div>
-            )}
-
-            {c.ai_technical_summary && (
-              <div className="bg-soc-card border border-soc-border rounded-xl">
-                <div className="flex items-center justify-between px-5 py-3 border-b border-soc-border">
-                  <h3 className="text-sm font-semibold text-white">Technical Analysis</h3>
-                  <button onClick={() => { navigator.clipboard.writeText(c.ai_technical_summary); toast.success('Copied'); }}
-                    className="text-soc-muted hover:text-soc-text"><Copy size={14} /></button>
-                </div>
-                <div className="p-5 prose-dark text-sm text-soc-text leading-relaxed whitespace-pre-wrap">{c.ai_technical_summary}</div>
-              </div>
-            )}
+            ))}
 
             {Array.isArray(c.mitre_techniques) && c.mitre_techniques.length > 0 && (
-              <div className="bg-soc-card border border-soc-border rounded-xl">
-                <div className="px-5 py-3 border-b border-soc-border">
-                  <h3 className="text-sm font-semibold text-white">MITRE ATT&CK Mapping</h3>
+              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', marginBottom: 12 }}>
+                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>MITRE ATT&CK Mapping</span>
                 </div>
-                <div className="p-5 space-y-3">
+                <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {c.mitre_techniques.map((t, i) => (
-                    <div key={i} className="bg-soc-surface border border-soc-border rounded-lg p-4">
-                      <div className="flex items-start gap-3 mb-2">
-                        <span className="font-mono text-xs bg-soc-cyan/10 text-soc-cyan px-2 py-1 rounded">{t.technique_id}</span>
-                        <div>
-                          <p className="text-sm font-medium text-white">{t.technique_name}</p>
-                          <p className="text-xs text-soc-muted">{t.tactic}</p>
-                        </div>
+                    <div key={i} style={{ background: C.elevated, borderRadius: 8, padding: '10px 14px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, background: C.accentBg, color: C.accent, padding: '3px 8px', borderRadius: 5, flexShrink: 0, border: `1px solid ${C.accentBor}` }}>{t.technique_id}</span>
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: C.textPri, margin: 0 }}>{t.technique_name} <span style={{ color: C.textMut, fontWeight: 400 }}>· {t.tactic}</span></p>
+                        <p style={{ fontSize: 11, color: C.textMut, margin: '3px 0 0' }}>{t.evidence}</p>
                       </div>
-                      <p className="text-xs text-soc-text ml-16">{t.evidence}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
-            {c.recommendations && (
-              <div className="bg-soc-card border border-soc-border rounded-xl">
-                <div className="px-5 py-3 border-b border-soc-border">
-                  <h3 className="text-sm font-semibold text-white">Recommendations</h3>
-                </div>
-                <div className="p-5 text-sm text-soc-text leading-relaxed whitespace-pre-wrap">{c.recommendations}</div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* ── AI CHAT ── */}
+        {/* AI CHAT */}
         {tab === 'chat' && (
-          <div className="max-w-3xl flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
-            <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+          <div style={{ maxWidth: 760, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 220px)' }}>
+            <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 16 }}>
               {chatMessages.length === 0 && (
-                <div className="text-center py-12">
-                  <Bot className="mx-auto mb-3 text-soc-muted" size={40} />
-                  <p className="text-white font-medium mb-1">AI Case Assistant</p>
-                  <p className="text-soc-muted text-sm">Ask me anything about this case.</p>
-                  <div className="flex flex-wrap gap-2 justify-center mt-4">
-                    {['What should I investigate next?', 'Is this a false positive?', 'Write a containment step', 'What MITRE techniques match?'].map(q => (
-                      <button key={q} onClick={() => setChatInput(q)}
-                        className="text-xs border border-soc-border text-soc-muted hover:text-soc-cyan hover:border-soc-cyan/30 px-3 py-1.5 rounded-lg transition-colors">
-                        {q}
-                      </button>
+                <div style={{ textAlign: 'center', paddingTop: 60 }}>
+                  <Bot size={40} style={{ color: C.textMut, margin: '0 auto 14px', display: 'block' }} />
+                  <p style={{ color: C.textPri, fontWeight: 600, margin: '0 0 6px' }}>AI Case Assistant</p>
+                  <p style={{ color: C.textMut, fontSize: 12, margin: '0 0 4px' }}>Ask anything about this incident.</p>
+                  <p style={{ color: C.textMut, fontSize: 11, margin: '0 0 24px' }}>Requires <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: 4 }}>GROQ_API_KEY</code> in Render env vars.</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                    {['What should I investigate next?','Is this a false positive?','Write containment steps','Which MITRE techniques match?'].map(q => (
+                      <button key={q} onClick={() => setChatInput(q)} style={{
+                        fontSize: 12, padding: '7px 14px', borderRadius: 8,
+                        border: `1px solid ${C.border}`, background: C.surface, color: C.textMut, cursor: 'pointer', transition: 'all 0.12s',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = C.accentBor; e.currentTarget.style.color = C.accent; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMut; }}
+                      >{q}</button>
                     ))}
                   </div>
                 </div>
               )}
               {chatMessages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                    m.role === 'user'
-                      ? 'bg-soc-cyan text-soc-bg font-medium'
-                      : 'bg-soc-card border border-soc-border text-soc-text'
-                  }`}>
-                    <pre className="whitespace-pre-wrap font-sans">{m.content}</pre>
+                <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
+                  <div style={{
+                    maxWidth: '78%', padding: '10px 14px', borderRadius: 14, fontSize: 13, lineHeight: 1.7,
+                    background: m.role === 'user' ? '#7C3AED' : C.surface,
+                    color: m.role === 'user' ? '#fff' : C.textSec,
+                    border: m.role === 'user' ? 'none' : `1px solid ${C.border}`,
+                  }}>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>{m.content}</pre>
                   </div>
                 </div>
               ))}
               {chatLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-soc-card border border-soc-border rounded-2xl px-4 py-3 text-sm text-soc-muted animate-pulse">
-                    Thinking...
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 12 }}>
+                  <div style={{ padding: '10px 16px', borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, color: C.textMut, fontSize: 13 }}>Thinking…</div>
                 </div>
               )}
+              <div ref={chatEndRef} />
             </div>
-            <div className="flex gap-2">
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendChat()}
-                placeholder="Ask anything about this case..."
-                className="flex-1 bg-soc-card border border-soc-border rounded-xl px-4 py-3 text-sm text-soc-text focus:outline-none focus:border-soc-cyan" />
-              <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
-                className="bg-soc-cyan text-soc-bg px-5 py-3 rounded-xl text-sm font-semibold hover:bg-soc-cyan-dim disabled:opacity-50 transition-colors">
-                Send
-              </button>
+            <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendChat()}
+                placeholder="Ask anything about this case…" style={{ ...inp(), flex: 1, resize: 'none' }}
+                onFocus={e => e.target.style.borderColor = C.accentBor}
+                onBlur={e => e.target.style.borderColor = C.border} />
+              <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()} style={{
+                padding: '10px 20px', borderRadius: 10, background: '#7C3AED', color: '#fff',
+                fontWeight: 600, fontSize: 13, border: 'none',
+                cursor: chatLoading || !chatInput.trim() ? 'not-allowed' : 'pointer',
+                opacity: chatLoading || !chatInput.trim() ? 0.5 : 1,
+                transition: 'opacity 0.15s',
+              }}>Send</button>
             </div>
           </div>
         )}
 
-        {/* ── REPORT ── */}
+        {/* REPORT */}
         {tab === 'report' && (
-          <div className="max-w-xl space-y-4">
-            <h2 className="text-sm font-semibold text-white">Download Report</h2>
+          <div style={{ maxWidth: 540 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 600, color: C.textPri, marginBottom: 16 }}>Download Report</h2>
             {!c.ai_executive_summary && (
-              <div className="bg-yellow-400/10 border border-yellow-400/20 rounded-xl p-4 text-sm text-yellow-400">
-                ⚠ Generate AI analysis first for a complete, detailed report.
+              <div style={{ padding: '12px 16px', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 10, fontSize: 12, color: '#FDE047', marginBottom: 16 }}>
+                ⚡ No AI analysis yet — clicking download will generate it first.
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
-              <a href={`/api/reports/${id}/pdf`} target="_blank" rel="noreferrer"
-                className="flex flex-col items-center justify-center gap-3 bg-soc-card border border-soc-border rounded-xl p-6 hover:border-soc-cyan/30 hover:bg-soc-cyan/5 transition-all group">
-                <Download size={28} className="text-red-400 group-hover:scale-110 transition-transform" />
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-white">PDF Report</p>
-                  <p className="text-xs text-soc-muted mt-1">Professional, customer-ready</p>
-                </div>
-              </a>
-              <a href={`/api/reports/${id}/docx`} target="_blank" rel="noreferrer"
-                className="flex flex-col items-center justify-center gap-3 bg-soc-card border border-soc-border rounded-xl p-6 hover:border-soc-cyan/30 hover:bg-soc-cyan/5 transition-all group">
-                <Download size={28} className="text-blue-400 group-hover:scale-110 transition-transform" />
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-white">Word Report</p>
-                  <p className="text-xs text-soc-muted mt-1">Editable DOCX format</p>
-                </div>
-              </a>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              {[
+                { fmt: 'pdf',  label: 'PDF Report',  desc: 'Professional, customer-ready', color: '#EF4444' },
+                { fmt: 'docx', label: 'Word Report', desc: 'Editable DOCX format',          color: C.accent },
+              ].map(({ fmt, label, desc, color }) => (
+                <button key={fmt} onClick={() => downloadReport(fmt)} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: 24,
+                  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14,
+                  cursor: 'pointer', transition: 'all 0.2s',
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = C.borderHov; e.currentTarget.style.background = C.elevated; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
+                  <Download size={28} style={{ color }} />
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: C.textPri, margin: 0 }}>{label}</p>
+                    <p style={{ fontSize: 11, color: C.textMut, margin: '3px 0 0' }}>{desc}</p>
+                  </div>
+                </button>
+              ))}
             </div>
-            <div className="bg-soc-card border border-soc-border rounded-xl p-4 text-xs text-soc-muted space-y-1">
-              <p>Case: <span className="text-soc-text">{c.case_number}</span></p>
-              <p>Classification: <span className="text-soc-text">{c.classification}</span></p>
-              <p>Analyst: <span className="text-soc-text">{c.analyst_name || '—'}</span></p>
-              <p>Customer: <span className="text-soc-text">{c.customer_name || '—'}</span></p>
-              <p>IOCs in report: <span className="text-soc-text">{c.iocs?.length || 0}</span></p>
-              <p>AI Summary: <span className={c.ai_executive_summary ? 'text-green-400' : 'text-red-400'}>{c.ai_executive_summary ? 'Included' : 'Not generated'}</span></p>
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
+              {[
+                ['Case', c.case_number],
+                ['Classification', c.classification],
+                ['Analyst', c.analyst_name || '—'],
+                ['Customer', c.customer_name || '—'],
+                ['IOCs', String(c.iocs?.length || 0)],
+                ['AI Summary', c.ai_executive_summary ? '✓ Ready' : '⚠ Will auto-generate'],
+                ['MITRE Techniques', String(Array.isArray(c.mitre_techniques) ? c.mitre_techniques.length : 0)],
+              ].map(([k, v], i) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: i < 6 ? 8 : 0 }}>
+                  <span style={{ color: C.textMut }}>{k}</span>
+                  <span style={{ color: C.textSec }}>{v}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

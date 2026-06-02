@@ -1,16 +1,267 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Copy, Send, AlertTriangle, CheckCircle, AlertCircle, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Copy, Send, ChevronDown, ChevronUp, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
-const VT_BADGE = {
-  malicious: 'text-red-400 bg-red-400/10 border-red-400/30',
-  suspicious: 'text-orange-400 bg-orange-400/10 border-orange-400/30',
-  clean: 'text-green-400 bg-green-400/10 border-green-400/30',
-  not_found: 'text-soc-muted bg-soc-surface border-soc-border',
-  unknown: 'text-soc-muted bg-soc-surface border-soc-border',
-  error: 'text-red-400 bg-red-400/10 border-red-400/30',
+function copyText(text) {
+  const doFallback = () => {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+    document.body.appendChild(el);
+    el.focus(); el.select();
+    try { document.execCommand('copy'); toast.success('Copied'); }
+    catch { toast.error('Copy failed'); }
+    document.body.removeChild(el);
+  };
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => toast.success('Copied')).catch(doFallback);
+    } else { doFallback(); }
+  } catch { doFallback(); }
+}
+
+const C = {
+  bg:        '#0C0C0E',
+  surface:   '#18181B',
+  elevated:  '#1C1C1F',
+  border:    'rgba(255,255,255,0.07)',
+  textPri:   '#F4F4F5',
+  textSec:   '#A1A1AA',
+  textMut:   '#52525B',
+  accent:    '#A78BFA',
+  accentBg:  'rgba(139,92,246,0.1)',
+  accentBor: 'rgba(139,92,246,0.25)',
 };
+
+const inp = (mono) => ({
+  width: '100%', padding: '9px 12px',
+  background: C.elevated, border: `1px solid ${C.border}`,
+  borderRadius: 8, color: C.textPri, fontSize: 13,
+  fontFamily: mono ? "'JetBrains Mono', monospace" : 'inherit',
+  outline: 'none', boxSizing: 'border-box', resize: 'vertical',
+  transition: 'border-color 0.15s',
+});
+
+const lbl = { display: 'block', fontSize: 11, color: C.textMut, marginBottom: 6, fontWeight: 500 };
+
+const VERDICT = {
+  malicious:  { color: '#FCA5A5', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.2)',  rowBg: 'rgba(239,68,68,0.04)' },
+  suspicious: { color: '#FDBA74', bg: 'rgba(249,115,22,0.1)', border: 'rgba(249,115,22,0.2)', rowBg: 'rgba(249,115,22,0.04)' },
+  clean:      { color: '#86EFAC', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.2)',  rowBg: 'rgba(34,197,94,0.04)' },
+  not_found:  { color: '#A1A1AA', bg: 'rgba(161,161,170,0.1)', border: 'rgba(161,161,170,0.2)', rowBg: 'transparent' },
+  unknown:    { color: '#A1A1AA', bg: 'rgba(161,161,170,0.1)', border: 'rgba(161,161,170,0.2)', rowBg: 'transparent' },
+  error:      { color: '#FCA5A5', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.2)',  rowBg: 'transparent' },
+};
+
+// Push to case modal
+function PushModal({ ioc, result, cases, onClose }) {
+  const [caseId, setCaseId] = useState('');
+  const [note, setNote] = useState('');
+  const [pushing, setPushing] = useState(false);
+
+  const push = async () => {
+    if (!caseId) return toast.error('Select a case');
+    setPushing(true);
+    try {
+      await api.post('/api/ioc/push-to-case', {
+        case_id: parseInt(caseId), ioc: result?.ioc || ioc, vt_result: result,
+        push_as_ioc: true,
+        note: note || `VT: ${result?.verdict?.toUpperCase() || 'UNKNOWN'} — ${result?.malicious_count || 0}/${result?.total_engines || 0} engines`,
+      });
+      toast.success('Finding pushed to case');
+      onClose();
+    } catch { toast.error('Push failed'); }
+    finally { setPushing(false); }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+      <div style={{ background: '#18181B', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, width: '100%', maxWidth: 460, padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: C.textPri, margin: 0 }}>Push to Case</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMut, fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={lbl}>Select Case</label>
+            <select value={caseId} onChange={e => setCaseId(e.target.value)} style={{ ...inp(), resize: 'none', cursor: 'pointer' }}>
+              <option value="">Choose a case…</option>
+              {cases.filter(c => c.status !== 'Closed').map(c => (
+                <option key={c.id} value={c.id}>{c.case_number} — {c.title}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Note (optional)</label>
+            <input value={note} onChange={e => setNote(e.target.value)}
+              placeholder="e.g. C2 server, malware hash, phishing domain"
+              style={{ ...inp(), resize: 'none' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 9, border: `1px solid ${C.border}`, background: 'transparent', color: C.textSec, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={push} disabled={pushing || !caseId} style={{
+              flex: 1, padding: '10px', borderRadius: 9, border: 'none',
+              background: pushing || !caseId ? '#5B21B6' : '#7C3AED', color: '#fff',
+              fontSize: 13, fontWeight: 500, cursor: pushing || !caseId ? 'not-allowed' : 'pointer',
+            }}>{pushing ? 'Pushing…' : 'Push Finding'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResultCard({ data, showPushBtn, cases }) {
+  const [showPush, setShowPush] = useState(false);
+  const [expanded, setExpanded] = useState({});
+  const toggle = k => setExpanded(e => ({ ...e, [k]: !e[k] }));
+  if (!data) return null;
+  const verdict = data.verdict || 'unknown';
+  const vc = VERDICT[verdict] || VERDICT.unknown;
+
+  return (
+    <>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ padding: '16px 18px', borderBottom: `1px solid ${C.border}`, background: vc.rowBg, display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, border: `1px solid ${vc.border}`, background: vc.bg, color: vc.color, fontWeight: 700 }}>
+                {verdict.toUpperCase()}
+              </span>
+              {data.type && <span style={{ fontSize: 11, color: C.textMut, background: C.elevated, padding: '2px 8px', borderRadius: 6 }}>{data.type.toUpperCase()}</span>}
+            </div>
+            <p style={{ fontFamily: 'monospace', fontSize: 13, color: C.textPri, margin: 0, wordBreak: 'break-all' }}>{data.ioc}</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button onClick={() => copyText(JSON.stringify(data, null, 2))} style={{
+              display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: C.textMut,
+              background: C.elevated, border: `1px solid ${C.border}`, padding: '5px 10px', borderRadius: 7, cursor: 'pointer',
+            }}><Copy size={12} /> Copy JSON</button>
+            {showPushBtn && cases.length > 0 && (
+              <button onClick={() => setShowPush(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: C.accent,
+                background: C.accentBg, border: `1px solid ${C.accentBor}`, padding: '5px 10px', borderRadius: 7, cursor: 'pointer',
+              }}><Send size={12} /> Push to Case</button>
+            )}
+          </div>
+        </div>
+
+        {/* Detection stats */}
+        {data.total_engines && (
+          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10 }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1, color: data.malicious_count > 0 ? '#EF4444' : '#22C55E' }}>{data.malicious_count}</div>
+                <div style={{ fontSize: 10, color: C.textMut, marginTop: 2 }}>Malicious</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: data.malicious_count > 0 ? '#EF4444' : '#22C55E', width: `${(data.malicious_count / data.total_engines) * 100}%`, borderRadius: 4, transition: 'width 0.5s ease' }} />
+                </div>
+                <p style={{ fontSize: 11, color: C.textMut, margin: '5px 0 0' }}>{data.total_engines} engines scanned</p>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, color: '#22C55E' }}>{data.total_engines - (data.malicious_count || 0)}</div>
+                <div style={{ fontSize: 10, color: C.textMut, marginTop: 2 }}>Clean</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Details grid */}
+        <div style={{ padding: '12px 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px', borderBottom: `1px solid ${C.border}` }}>
+          {[
+            ['Country', data.country],
+            ['ASN Owner', data.as_owner],
+            ['ASN', data.asn],
+            ['Network', data.network],
+            ['Reputation', data.reputation],
+            ['Registrar', data.registrar],
+            ['File Name', data.file_name],
+            ['File Type', data.file_type],
+            ['File Size', data.file_size ? `${(data.file_size / 1024).toFixed(1)} KB` : null],
+            ['First Seen', data.first_seen ? new Date(data.first_seen * 1000).toLocaleDateString() : null],
+            ['Created', data.creation_date ? new Date(data.creation_date * 1000).toLocaleDateString() : null],
+          ].filter(([, v]) => v != null).map(([k, v]) => (
+            <div key={k}>
+              <p style={{ fontSize: 11, color: C.textMut, margin: 0 }}>{k}</p>
+              <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>{String(v)}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Hashes */}
+        {(data.md5 || data.sha1 || data.sha256) && (
+          <div style={{ padding: '12px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[['MD5', data.md5], ['SHA1', data.sha1], ['SHA256', data.sha256]].filter(([, v]) => v).map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11, color: C.textMut, width: 48, flexShrink: 0 }}>{k}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 11, color: C.textSec, flex: 1, wordBreak: 'break-all' }}>{v}</span>
+                <button onClick={() => copyText(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMut, padding: 4, flexShrink: 0, transition: 'color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = C.textSec}
+                  onMouseLeave={e => e.currentTarget.style.color = C.textMut}><Copy size={12} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tags */}
+        {data.tags?.length > 0 && (
+          <div style={{ padding: '10px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {data.tags.map(t => (
+              <span key={t} style={{ fontSize: 11, background: C.accentBg, color: C.accent, border: `1px solid ${C.accentBor}`, padding: '2px 8px', borderRadius: 6 }}>{t}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Flagged engines */}
+        {Object.keys(data.last_analysis_results || {}).length > 0 && (
+          <div style={{ padding: '10px 18px', borderBottom: `1px solid ${C.border}` }}>
+            <button onClick={() => toggle('engines')} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMut, background: 'none', border: 'none', cursor: 'pointer', transition: 'color 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.color = C.textSec}
+              onMouseLeave={e => e.currentTarget.style.color = C.textMut}
+            >
+              {expanded.engines ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              Flagged by {Object.keys(data.last_analysis_results).length} engine(s)
+            </button>
+            {expanded.engines && (
+              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {Object.entries(data.last_analysis_results).map(([eng, r]) => (
+                  <span key={eng} style={{ fontSize: 11, background: 'rgba(239,68,68,0.08)', color: '#FCA5A5', border: '1px solid rgba(239,68,68,0.2)', padding: '2px 8px', borderRadius: 6 }}>
+                    {eng}: {r.result || r.category}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DNS resolutions */}
+        {data.resolutions?.length > 0 && (
+          <div style={{ padding: '10px 18px' }}>
+            <button onClick={() => toggle('res')} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMut, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 6 }}>
+              {expanded.res ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              DNS Resolutions ({data.resolutions.length})
+            </button>
+            {expanded.res && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {data.resolutions.map((r, i) => (
+                  <div key={i} style={{ fontFamily: 'monospace', fontSize: 11, color: C.textSec, background: C.elevated, padding: '6px 10px', borderRadius: 6 }}>
+                    {r.host_name || r.ip_address || JSON.stringify(r)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {showPush && <PushModal ioc={data.ioc} result={data} cases={cases} onClose={() => setShowPush(false)} />}
+    </>
+  );
+}
 
 export default function VTLookup() {
   const [query, setQuery] = useState('');
@@ -18,18 +269,13 @@ export default function VTLookup() {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState([]);
   const [cases, setCases] = useState([]);
-  const [showPush, setShowPush] = useState(false);
-  const [pushCase, setPushCase] = useState('');
-  const [pushNote, setPushNote] = useState('');
-  const [pushing, setPushing] = useState(false);
-  const [expanded, setExpanded] = useState({});
+  const [activeTab, setActiveTab] = useState('single');
 
-  // Bulk extractor
+  // Bulk
   const [rawText, setRawText] = useState('');
   const [extracted, setExtracted] = useState(null);
   const [bulkResults, setBulkResults] = useState({});
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('single');
 
   useEffect(() => {
     api.get('/api/cases').then(r => setCases(r.data)).catch(() => {});
@@ -37,16 +283,14 @@ export default function VTLookup() {
 
   const lookup = async () => {
     if (!query.trim()) return;
-    setLoading(true);
-    setResult(null);
+    setLoading(true); setResult(null);
     try {
       const res = await api.post('/api/ioc/lookup', { ioc: query.trim() });
       const data = res.data.virustotal || res.data;
       setResult(data);
       setHistory(h => [{ ioc: query.trim(), result: data, ts: new Date().toLocaleTimeString() }, ...h.slice(0, 9)]);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Lookup failed');
-    } finally { setLoading(false); }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Lookup failed'); }
+    finally { setLoading(false); }
   };
 
   const extractIOCs = async () => {
@@ -67,257 +311,109 @@ export default function VTLookup() {
     finally { setBulkLoading(false); }
   };
 
-  const pushToCase = async () => {
-    if (!pushCase) return toast.error('Select a case');
-    setPushing(true);
-    try {
-      await api.post('/api/ioc/push-to-case', {
-        case_id: parseInt(pushCase),
-        ioc: result?.ioc || query,
-        vt_result: result,
-        push_as_ioc: true,
-        note: pushNote || `VT: ${result?.verdict?.toUpperCase()} — ${result?.malicious_count || 0}/${result?.total_engines || 0} engines`,
-      });
-      toast.success('Finding pushed to case');
-      setShowPush(false);
-      setPushNote('');
-    } catch { toast.error('Push failed'); }
-    finally { setPushing(false); }
-  };
-
-  const toggle = key => setExpanded(e => ({ ...e, [key]: !e[key] }));
-
-  const ResultCard = ({ data, showPushBtn = false }) => {
-    if (!data) return null;
-    const verdict = data.verdict || 'unknown';
-    return (
-      <div className="bg-soc-card border border-soc-border rounded-xl overflow-hidden">
-        {/* Header */}
-        <div className={`px-5 py-4 border-b border-soc-border flex items-start gap-4 ${
-          verdict === 'malicious' ? 'bg-red-400/5' :
-          verdict === 'suspicious' ? 'bg-orange-400/5' :
-          verdict === 'clean' ? 'bg-green-400/5' : ''
-        }`}>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className={`text-sm px-3 py-1 rounded-full border font-bold ${VT_BADGE[verdict] || VT_BADGE.unknown}`}>
-                {verdict.toUpperCase()}
-              </span>
-              <span className="text-xs text-soc-muted bg-soc-surface px-2 py-1 rounded">{data.type?.toUpperCase()}</span>
-            </div>
-            <p className="font-mono text-sm text-white mt-2 break-all">{data.ioc}</p>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <button onClick={() => { navigator.clipboard.writeText(JSON.stringify(data, null, 2)); toast.success('JSON copied'); }}
-              className="text-soc-muted hover:text-soc-text p-1.5 rounded hover:bg-soc-surface transition-colors"><Copy size={14} /></button>
-            {showPushBtn && (
-              <button onClick={() => setShowPush(true)}
-                className="flex items-center gap-1.5 bg-soc-cyan/10 text-soc-cyan border border-soc-cyan/20 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-soc-cyan/20 transition-colors">
-                <Send size={12} /> Push to Case
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Detection stats */}
-        {data.total_engines && (
-          <div className="px-5 py-4 border-b border-soc-border">
-            <div className="flex items-center gap-4 mb-3">
-              <div className="text-center">
-                <p className={`text-3xl font-bold ${data.malicious_count > 0 ? 'text-red-400' : 'text-green-400'}`}>{data.malicious_count}</p>
-                <p className="text-xs text-soc-muted">Malicious</p>
-              </div>
-              <div className="flex-1">
-                <div className="h-3 bg-soc-surface rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${data.malicious_count > 0 ? 'bg-red-400' : 'bg-green-400'}`}
-                    style={{ width: `${(data.malicious_count / data.total_engines) * 100}%` }} />
-                </div>
-                <p className="text-xs text-soc-muted mt-1">{data.total_engines} engines total</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xl font-bold text-green-400">{data.total_engines - (data.malicious_count || 0)}</p>
-                <p className="text-xs text-soc-muted">Clean</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Details grid */}
-        <div className="px-5 py-4 grid grid-cols-2 gap-x-8 gap-y-3 text-sm border-b border-soc-border">
-          {data.country && <Detail label="Country" value={data.country} />}
-          {data.as_owner && <Detail label="ASN Owner" value={data.as_owner} />}
-          {data.asn && <Detail label="ASN" value={data.asn} />}
-          {data.network && <Detail label="Network" value={data.network} />}
-          {data.reputation !== undefined && <Detail label="Reputation" value={data.reputation} />}
-          {data.registrar && <Detail label="Registrar" value={data.registrar} />}
-          {data.creation_date && <Detail label="Created" value={new Date(data.creation_date * 1000).toLocaleDateString()} />}
-          {data.file_name && <Detail label="File Name" value={data.file_name} />}
-          {data.file_type && <Detail label="File Type" value={data.file_type} />}
-          {data.file_size && <Detail label="File Size" value={`${(data.file_size / 1024).toFixed(1)} KB`} />}
-          {data.magic && <Detail label="Magic" value={data.magic} />}
-          {data.first_seen && <Detail label="First Seen" value={new Date(data.first_seen * 1000).toLocaleDateString()} />}
-        </div>
-
-        {/* Hashes */}
-        {(data.md5 || data.sha1 || data.sha256) && (
-          <div className="px-5 py-4 border-b border-soc-border space-y-2">
-            {data.md5 && <HashRow label="MD5" value={data.md5} />}
-            {data.sha1 && <HashRow label="SHA1" value={data.sha1} />}
-            {data.sha256 && <HashRow label="SHA256" value={data.sha256} />}
-          </div>
-        )}
-
-        {/* Tags */}
-        {data.tags?.length > 0 && (
-          <div className="px-5 py-3 border-b border-soc-border flex flex-wrap gap-2">
-            {data.tags.map(t => (
-              <span key={t} className="text-xs bg-soc-purple/10 text-purple-300 border border-purple-400/20 px-2 py-0.5 rounded">{t}</span>
-            ))}
-          </div>
-        )}
-
-        {/* Flagged engines */}
-        {Object.keys(data.last_analysis_results || {}).length > 0 && (
-          <div className="px-5 py-4 border-b border-soc-border">
-            <button onClick={() => toggle('engines')} className="flex items-center gap-2 text-xs text-soc-muted hover:text-soc-text w-full">
-              {expanded.engines ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              Flagged by {Object.keys(data.last_analysis_results).length} engine(s)
-            </button>
-            {expanded.engines && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {Object.entries(data.last_analysis_results).map(([eng, r]) => (
-                  <span key={eng} className="text-xs bg-red-400/10 text-red-400 border border-red-400/20 px-2 py-1 rounded">
-                    {eng}: {r.result || r.category}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Resolutions (IP) */}
-        {data.resolutions?.length > 0 && (
-          <div className="px-5 py-4">
-            <button onClick={() => toggle('res')} className="flex items-center gap-2 text-xs text-soc-muted hover:text-soc-text mb-2">
-              {expanded.res ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              DNS Resolutions ({data.resolutions.length})
-            </button>
-            {expanded.res && (
-              <div className="space-y-1">
-                {data.resolutions.map((r, i) => (
-                  <div key={i} className="text-xs font-mono text-soc-text bg-soc-surface px-3 py-2 rounded">
-                    {r.host_name || r.ip_address || JSON.stringify(r)}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const Detail = ({ label, value }) => (
-    <div>
-      <p className="text-xs text-soc-muted">{label}</p>
-      <p className="text-sm text-soc-text mt-0.5">{String(value)}</p>
-    </div>
-  );
-
-  const HashRow = ({ label, value }) => (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-soc-muted w-12">{label}</span>
-      <span className="font-mono text-xs text-soc-text flex-1 break-all">{value}</span>
-      <button onClick={() => { navigator.clipboard.writeText(value); toast.success(`${label} copied`); }}
-        className="text-soc-muted hover:text-soc-text shrink-0"><Copy size={12} /></button>
-    </div>
-  );
+  const vc = (v) => (VERDICT[v] || VERDICT.unknown);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">VirusTotal Lookup</h1>
-        <p className="text-soc-muted text-sm mt-1">Search IPs, file hashes (MD5/SHA1/SHA256), domains, and URLs</p>
+    <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, color: C.textPri, margin: 0 }}>VirusTotal Lookup</h1>
+        <p style={{ color: C.textMut, fontSize: 13, marginTop: 4, marginBottom: 0 }}>Search IPs, file hashes (MD5/SHA1/SHA256), domains, and URLs</p>
       </div>
 
       {/* Tab switch */}
-      <div className="flex gap-1 bg-soc-card border border-soc-border rounded-xl p-1 w-fit mb-6">
-        {['single', 'bulk'].map(t => (
-          <button key={t} onClick={() => setActiveTab(t)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${
-              activeTab === t ? 'bg-soc-cyan text-soc-bg' : 'text-soc-muted hover:text-soc-text'
-            }`}>{t === 'single' ? 'Single Lookup' : 'IOC Extractor + Bulk'}</button>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
+        {[['single', 'Single Lookup'], ['bulk', 'IOC Extractor + Bulk']].map(([t, label]) => (
+          <button key={t} onClick={() => setActiveTab(t)} style={{
+            padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 500,
+            border: `1px solid ${activeTab === t ? C.accentBor : C.border}`,
+            background: activeTab === t ? C.accentBg : C.surface,
+            color: activeTab === t ? C.accent : C.textMut,
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}>{label}</button>
         ))}
       </div>
 
       {activeTab === 'single' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-5">
-            {/* Search bar */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-soc-muted" />
-                <input
-                  value={query} onChange={e => setQuery(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && lookup()}
-                  placeholder="Enter IP, MD5/SHA1/SHA256, domain, or URL..."
-                  className="w-full bg-soc-card border border-soc-border rounded-xl pl-9 pr-4 py-3 text-sm text-soc-text font-mono placeholder-soc-muted focus:outline-none focus:border-soc-cyan"
-                />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20, alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Search */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.textMut }} />
+                <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && lookup()}
+                  placeholder="Enter IP, MD5/SHA1/SHA256, domain, or URL…"
+                  style={{ ...inp(true), paddingLeft: 36, resize: 'none' }}
+                  onFocus={e => e.target.style.borderColor = C.accentBor}
+                  onBlur={e => e.target.style.borderColor = C.border} />
               </div>
-              <button onClick={lookup} disabled={loading}
-                className="bg-soc-cyan text-soc-bg px-5 py-3 rounded-xl text-sm font-semibold hover:bg-soc-cyan-dim disabled:opacity-50 transition-colors">
-                {loading ? 'Searching...' : 'Search'}
-              </button>
+              <button onClick={lookup} disabled={loading} style={{
+                padding: '9px 20px', borderRadius: 9, border: 'none',
+                background: loading ? '#5B21B6' : '#7C3AED', color: '#fff',
+                fontSize: 13, fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+              }}>{loading ? 'Searching…' : 'Search'}</button>
             </div>
-
-            {result && <ResultCard data={result} showPushBtn />}
+            {result && <ResultCard data={result} showPushBtn cases={cases} />}
           </div>
 
-          {/* History sidebar */}
+          {/* History */}
           <div>
-            <h3 className="text-xs text-soc-muted uppercase tracking-wider mb-3">Recent Lookups</h3>
-            <div className="space-y-2">
-              {history.length === 0 && <p className="text-xs text-soc-muted">No recent lookups</p>}
-              {history.map((h, i) => (
-                <div key={i} onClick={() => { setQuery(h.ioc); setResult(h.result); }}
-                  className="bg-soc-card border border-soc-border rounded-lg px-3 py-2 cursor-pointer hover:border-soc-cyan/30 transition-colors">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={`text-xs px-1.5 py-0.5 rounded border ${VT_BADGE[h.result?.verdict] || VT_BADGE.unknown}`}>
-                      {h.result?.verdict?.toUpperCase() || '?'}
-                    </span>
-                    <span className="text-xs text-soc-muted">{h.ts}</span>
+            <p style={{ fontSize: 11, color: C.textMut, marginBottom: 10, fontWeight: 500, letterSpacing: '0.04em' }}>RECENT LOOKUPS</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {history.length === 0 && <p style={{ fontSize: 12, color: C.textMut }}>No recent lookups</p>}
+              {history.map((h, i) => {
+                const v = h.result?.verdict;
+                const hvc = vc(v);
+                return (
+                  <div key={i} onClick={() => { setQuery(h.ioc); setResult(h.result); }} style={{
+                    background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
+                    padding: '10px 12px', cursor: 'pointer', transition: 'border-color 0.12s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = C.accentBor}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, border: `1px solid ${hvc.border}`, background: hvc.bg, color: hvc.color, fontWeight: 700 }}>
+                        {v?.toUpperCase() || '?'}
+                      </span>
+                      <span style={{ fontSize: 10, color: C.textMut }}>{h.ts}</span>
+                    </div>
+                    <p style={{ fontFamily: 'monospace', fontSize: 11, color: C.textSec, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.ioc}</p>
                   </div>
-                  <p className="font-mono text-xs text-soc-text truncate">{h.ioc}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
       )}
 
       {activeTab === 'bulk' && (
-        <div className="space-y-5">
-          <div>
-            <label className="block text-xs text-soc-muted mb-2">Paste raw text — email body, log output, alert data, anything</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20 }}>
+            <label style={lbl}>Paste raw text — email body, log output, alert data, anything</label>
             <textarea value={rawText} onChange={e => setRawText(e.target.value)} rows={8}
-              placeholder={"Paste any raw text here — emails, logs, alert outputs, SIEM data...\nThe extractor will find all IPs, hashes, domains, URLs, CVEs automatically."}
-              className="w-full bg-soc-card border border-soc-border rounded-xl px-4 py-3 text-sm text-soc-text font-mono focus:outline-none focus:border-soc-cyan resize-none" />
-            <button onClick={extractIOCs}
-              className="mt-2 bg-soc-cyan text-soc-bg px-4 py-2 rounded-lg text-sm font-semibold hover:bg-soc-cyan-dim transition-colors">
-              Extract IOCs
-            </button>
+              placeholder={"Paste any raw text here — emails, logs, SIEM data…\nThe extractor will find all IPs, hashes, domains, URLs, CVEs automatically."}
+              style={{ ...inp(true), resize: 'vertical', marginBottom: 12 }}
+              onFocus={e => e.target.style.borderColor = C.accentBor}
+              onBlur={e => e.target.style.borderColor = C.border} />
+            <button onClick={extractIOCs} style={{
+              padding: '9px 20px', borderRadius: 9, border: 'none',
+              background: '#7C3AED', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+            }}>Extract IOCs</button>
           </div>
 
           {extracted && (
-            <div className="bg-soc-card border border-soc-border rounded-xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-white">Extracted IOCs</h3>
-                <button onClick={bulkLookup} disabled={bulkLoading || !extracted.all_for_lookup?.length}
-                  className="bg-soc-cyan text-soc-bg px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-soc-cyan-dim disabled:opacity-50 transition-colors">
-                  {bulkLoading ? 'Looking up...' : `VT Lookup All (${extracted.all_for_lookup?.length || 0})`}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: C.textPri, margin: 0 }}>Extracted IOCs</h3>
+                <button onClick={bulkLookup} disabled={bulkLoading || !extracted.all_for_lookup?.length} style={{
+                  padding: '7px 14px', borderRadius: 8, border: 'none',
+                  background: bulkLoading || !extracted.all_for_lookup?.length ? '#5B21B6' : '#7C3AED',
+                  color: '#fff', fontSize: 12, fontWeight: 500, cursor: bulkLoading ? 'not-allowed' : 'pointer',
+                }}>
+                  {bulkLoading ? 'Looking up…' : `VT Lookup All (${extracted.all_for_lookup?.length || 0})`}
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
                 {[
                   ['IPs', extracted.ips],
                   ['MD5 Hashes', extracted.hashes_md5],
@@ -328,16 +424,18 @@ export default function VTLookup() {
                   ['CVEs', extracted.cves],
                   ['Emails', extracted.emails],
                 ].filter(([, arr]) => arr?.length > 0).map(([label, arr]) => (
-                  <div key={label} className="bg-soc-surface border border-soc-border rounded-lg p-3">
-                    <p className="text-xs text-soc-muted mb-2">{label} ({arr.length})</p>
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                  <div key={label} style={{ background: C.elevated, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
+                    <p style={{ fontSize: 11, color: C.textMut, margin: '0 0 8px', fontWeight: 500 }}>{label} ({arr.length})</p>
+                    <div style={{ maxHeight: 130, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {arr.map((v, i) => {
                         const vtR = bulkResults[v]?.virustotal || bulkResults[v];
+                        const bvc = vc(vtR?.verdict);
                         return (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="font-mono text-xs text-soc-text truncate flex-1">{v}</span>
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: C.textSec, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</span>
+                            <button onClick={() => copyText(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMut, padding: 2, flexShrink: 0 }}><Copy size={11} /></button>
                             {vtR?.verdict && (
-                              <span className={`text-xs px-1.5 py-0.5 rounded border ${VT_BADGE[vtR.verdict] || VT_BADGE.unknown}`}>
+                              <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 20, border: `1px solid ${bvc.border}`, background: bvc.bg, color: bvc.color, fontWeight: 700, flexShrink: 0 }}>
                                 {vtR.verdict.slice(0, 3).toUpperCase()}
                               </span>
                             )}
@@ -350,46 +448,6 @@ export default function VTLookup() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Push to Case Modal */}
-      {showPush && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-soc-card border border-soc-border rounded-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold text-white">Push to Case</h3>
-              <button onClick={() => setShowPush(false)} className="text-soc-muted hover:text-white"><X size={18} /></button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs text-soc-muted mb-1.5">Select Case</label>
-                <select value={pushCase} onChange={e => setPushCase(e.target.value)}
-                  className="w-full bg-soc-surface border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan">
-                  <option value="">Select a case...</option>
-                  {cases.filter(c => c.status !== 'Closed').map(c => (
-                    <option key={c.id} value={c.id}>{c.case_number} — {c.title}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-soc-muted mb-1.5">Note (optional)</label>
-                <input value={pushNote} onChange={e => setPushNote(e.target.value)}
-                  placeholder="e.g. C2 server, malware hash, phishing domain"
-                  className="w-full bg-soc-surface border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan" />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowPush(false)}
-                  className="flex-1 bg-soc-surface border border-soc-border text-soc-text py-2.5 rounded-lg text-sm hover:bg-soc-card transition-colors">
-                  Cancel
-                </button>
-                <button onClick={pushToCase} disabled={pushing || !pushCase}
-                  className="flex-1 bg-soc-cyan text-soc-bg font-semibold py-2.5 rounded-lg text-sm hover:bg-soc-cyan-dim disabled:opacity-50 transition-colors">
-                  {pushing ? 'Pushing...' : 'Push Finding'}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>

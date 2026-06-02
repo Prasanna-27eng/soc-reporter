@@ -1,32 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter, Trash2, ExternalLink, FolderOpen } from 'lucide-react';
+import { Plus, Search, Trash2, ExternalLink, FolderOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
 const SEV = {
-  Critical: 'text-red-400 bg-red-400/10 border-red-400/20',
-  High: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  Medium: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
-  Low: 'text-green-400 bg-green-400/10 border-green-400/20',
+  Critical: { text: '#FCA5A5', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.2)' },
+  High:     { text: '#FDBA74', bg: 'rgba(249,115,22,0.1)', border: 'rgba(249,115,22,0.2)' },
+  Medium:   { text: '#FDE047', bg: 'rgba(234,179,8,0.1)',  border: 'rgba(234,179,8,0.2)' },
+  Low:      { text: '#86EFAC', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.2)' },
 };
+const STATUS = { Open: '#EF4444', 'In Progress': '#EAB308', Closed: '#22C55E' };
 
 const TEMPLATES = {
-  Ransomware: { severity: 'Critical', description: 'Ransomware infection detected. Files encrypted and ransom note found.', commands_run: '', findings: '' },
-  Phishing: { severity: 'High', description: 'Phishing email campaign targeting organisation users.', commands_run: '', findings: '' },
-  BEC: { severity: 'High', description: 'Business Email Compromise — suspicious email activity detected from compromised account.', commands_run: '', findings: '' },
-  'Insider Threat': { severity: 'High', description: 'Suspected insider threat — unusual data access or exfiltration by internal user.', commands_run: '', findings: '' },
-  Malware: { severity: 'High', description: 'Malware infection detected on endpoint.', commands_run: '', findings: '' },
-  'Data Breach': { severity: 'Critical', description: 'Potential data breach — unauthorised access to sensitive data detected.', commands_run: '', findings: '' },
-  Other: { severity: 'Medium', description: '', commands_run: '', findings: '' },
+  Ransomware:      { severity: 'Critical', description: 'Ransomware infection detected. Files encrypted and ransom note found.' },
+  Phishing:        { severity: 'High',     description: 'Phishing email campaign targeting organisation users.' },
+  BEC:             { severity: 'High',     description: 'Business Email Compromise — suspicious email activity from compromised account.' },
+  'Insider Threat':{ severity: 'High',     description: 'Suspected insider threat — unusual data access or exfiltration.' },
+  Malware:         { severity: 'High',     description: 'Malware infection detected on endpoint.' },
+  'Data Breach':   { severity: 'Critical', description: 'Potential data breach — unauthorised access to sensitive data detected.' },
+  Other:           { severity: 'Medium',   description: '' },
 };
+const BLANK = { title: '', severity: 'High', incident_type: 'Phishing', affected_systems: '', analyst_name: '', customer_name: '', classification: 'TLP:AMBER', description: '', iocs: [], timeline_events: [] };
 
-const BLANK = {
-  title: '', severity: 'High', incident_type: 'Phishing',
-  affected_systems: '', analyst_name: '', customer_name: '',
-  classification: 'TLP:AMBER', description: '', commands_run: '', findings: '',
-  iocs: [], timeline_events: [],
-};
+const inp = { width: '100%', padding: '8px 12px', background: '#0C0C0E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#F4F4F5', fontSize: 13, outline: 'none', boxSizing: 'border-box' };
+const lbl = { display: 'block', fontSize: 11, color: '#71717A', marginBottom: 6, fontWeight: 500 };
 
 export default function CaseList() {
   const [cases, setCases] = useState([]);
@@ -70,104 +68,108 @@ export default function CaseList() {
   };
 
   const filtered = cases.filter(c => {
-    const matchSearch = c.title.toLowerCase().includes(search.toLowerCase()) ||
-      c.case_number.toLowerCase().includes(search.toLowerCase());
-    const matchSev = filterSev === 'All' || c.severity === filterSev;
-    return matchSearch && matchSev;
+    const q = search.toLowerCase();
+    return (c.title.toLowerCase().includes(q) || c.case_number.toLowerCase().includes(q)) &&
+      (filterSev === 'All' || c.severity === filterSev);
   });
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div style={{ padding: 24, maxWidth: 1240, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h1 className="text-2xl font-bold text-white">Cases</h1>
-          <p className="text-soc-muted text-sm mt-1">{cases.length} total incidents</p>
+          <h1 style={{ fontSize: 22, fontWeight: 600, color: '#F4F4F5', margin: 0 }}>Cases</h1>
+          <p style={{ color: '#71717A', fontSize: 13, marginTop: 4, marginBottom: 0 }}>{cases.length} total incidents</p>
         </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="flex items-center gap-2 bg-soc-cyan text-soc-bg px-4 py-2 rounded-lg text-sm font-semibold hover:bg-soc-cyan-dim transition-colors"
+        <button onClick={() => setShowNew(true)} style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '9px 16px', borderRadius: 9,
+          background: '#7C3AED', border: 'none', color: '#fff',
+          fontSize: 13, fontWeight: 500, cursor: 'pointer',
+          transition: 'background 0.15s',
+        }}
+          onMouseEnter={e => e.currentTarget.style.background = '#6D28D9'}
+          onMouseLeave={e => e.currentTarget.style.background = '#7C3AED'}
         >
-          <Plus size={16} /> New Case
+          <Plus size={15} /> New Case
         </button>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-5">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-soc-muted" />
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search cases..."
-            className="w-full bg-soc-card border border-soc-border rounded-lg pl-8 pr-4 py-2 text-sm text-soc-text placeholder-soc-muted focus:outline-none focus:border-soc-cyan"
-          />
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <div style={{ position: 'relative', flex: 1, maxWidth: 340 }}>
+          <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#52525B' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search cases..."
+            style={{ ...inp, paddingLeft: 32, maxWidth: '100%' }} />
         </div>
-        <select
-          value={filterSev} onChange={e => setFilterSev(e.target.value)}
-          className="bg-soc-card border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan"
-        >
-          {['All', 'Critical', 'High', 'Medium', 'Low'].map(s => <option key={s}>{s}</option>)}
+        <select value={filterSev} onChange={e => setFilterSev(e.target.value)}
+          style={{ ...inp, width: 'auto', paddingRight: 32 }}>
+          {['All','Critical','High','Medium','Low'].map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
 
-      {/* Cases Table */}
-      <div className="bg-soc-card border border-soc-border rounded-xl overflow-hidden">
+      {/* Table */}
+      <div style={{ background: '#18181B', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
         {loading ? (
-          <div className="p-12 text-center text-soc-muted">Loading...</div>
+          <div style={{ padding: 48, textAlign: 'center', color: '#52525B', fontSize: 13 }}>Loading...</div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <FolderOpen className="mx-auto mb-3 text-soc-muted" size={40} />
-            <p className="text-soc-muted">No cases found.</p>
-            <button onClick={() => setShowNew(true)} className="mt-3 text-soc-cyan text-sm hover:underline">Create one →</button>
+          <div style={{ padding: 56, textAlign: 'center' }}>
+            <FolderOpen size={36} style={{ color: '#27272A', margin: '0 auto 12px', display: 'block' }} />
+            <p style={{ color: '#52525B', fontSize: 13, margin: '0 0 10px' }}>No cases found.</p>
+            <button onClick={() => setShowNew(true)} style={{ color: '#A78BFA', fontSize: 12, background: 'none', border: 'none', cursor: 'pointer' }}>Create one →</button>
           </div>
         ) : (
-          <table className="w-full">
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr className="border-b border-soc-border bg-soc-surface">
-                {['Case #', 'Title', 'Type', 'Severity', 'Status', 'IOCs', 'AI', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs text-soc-muted font-medium">{h}</th>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#1C1C1F' }}>
+                {['Case #','Title','Type','Severity','Status','IOCs','AI',''].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: '#71717A', fontWeight: 500, letterSpacing: '0.02em' }}>{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-soc-border">
-              {filtered.map(c => (
-                <tr
-                  key={c.id}
-                  onClick={() => navigate(`/cases/${c.id}`)}
-                  className="hover:bg-soc-surface cursor-pointer transition-colors"
-                >
-                  <td className="px-4 py-3 text-xs font-mono text-soc-cyan">{c.case_number}</td>
-                  <td className="px-4 py-3 text-sm text-white max-w-xs">
-                    <p className="truncate">{c.title}</p>
-                    {c.customer_name && <p className="text-xs text-soc-muted truncate">{c.customer_name}</p>}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-soc-muted">{c.incident_type}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${SEV[c.severity] || SEV.Low}`}>
-                      {c.severity}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium ${
-                      c.status === 'Open' ? 'text-red-400' :
-                      c.status === 'In Progress' ? 'text-yellow-400' : 'text-green-400'
-                    }`}>{c.status}</span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-soc-muted">{Array.isArray(c.iocs) ? c.iocs.length : 0}</td>
-                  <td className="px-4 py-3">
-                    {c.ai_executive_summary ? (
-                      <span className="text-xs text-soc-cyan bg-soc-cyan/10 px-2 py-0.5 rounded-full">AI ✓</span>
-                    ) : (
-                      <span className="text-xs text-soc-muted">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => navigate(`/cases/${c.id}`)} className="text-soc-muted hover:text-soc-cyan transition-colors"><ExternalLink size={14} /></button>
-                      <button onClick={e => deleteCase(e, c.id)} className="text-soc-muted hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+            <tbody>
+              {filtered.map((c, i) => {
+                const sev = SEV[c.severity] || SEV.Low;
+                return (
+                  <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)} style={{
+                    cursor: 'pointer',
+                    borderBottom: i < filtered.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                    transition: 'background 0.12s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: 11, color: '#A78BFA', whiteSpace: 'nowrap' }}>{c.case_number}</td>
+                    <td style={{ padding: '12px 16px', maxWidth: 260 }}>
+                      <p style={{ fontSize: 13, color: '#E4E4E7', fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</p>
+                      {c.customer_name && <p style={{ fontSize: 11, color: '#52525B', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.customer_name}</p>}
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: '#71717A', whiteSpace: 'nowrap' }}>{c.incident_type}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, border: `1px solid ${sev.border}`, background: sev.bg, color: sev.text, fontWeight: 600 }}>
+                        {c.severity}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 12, fontWeight: 500, color: STATUS[c.status] || '#71717A', whiteSpace: 'nowrap' }}>{c.status}</td>
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: '#71717A' }}>{Array.isArray(c.iocs) ? c.iocs.length : 0}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {c.ai_executive_summary
+                        ? <span style={{ fontSize: 10, color: '#A78BFA', background: 'rgba(139,92,246,0.1)', padding: '2px 8px', borderRadius: 20 }}>AI ✓</span>
+                        : <span style={{ color: '#3F3F46', fontSize: 12 }}>—</span>}
+                    </td>
+                    <td style={{ padding: '12px 16px' }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => navigate(`/cases/${c.id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#52525B', padding: 4 }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#A78BFA'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#52525B'}><ExternalLink size={14} /></button>
+                        <button onClick={e => deleteCase(e, c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#52525B', padding: 4 }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#EF4444'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#52525B'}><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -175,84 +177,84 @@ export default function CaseList() {
 
       {/* New Case Modal */}
       {showNew && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-soc-card border border-soc-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-soc-card border-b border-soc-border px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">New Case</h2>
-              <button onClick={() => setShowNew(false)} className="text-soc-muted hover:text-white text-xl">×</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div style={{ background: '#18181B', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, width: '100%', maxWidth: 620, maxHeight: '90vh', overflow: 'auto' }}>
+            {/* Modal header */}
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#18181B' }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#F4F4F5', margin: 0 }}>New Incident Case</h2>
+              <button onClick={() => setShowNew(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#71717A', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
             </div>
-            <form onSubmit={create} className="p-6 space-y-4">
+
+            <form onSubmit={create} style={{ padding: 22 }}>
               {/* Templates */}
-              <div>
-                <label className="block text-xs text-soc-muted mb-2">Quick Template</label>
-                <div className="flex flex-wrap gap-2">
+              <div style={{ marginBottom: 18 }}>
+                <label style={lbl}>Quick Template</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {Object.keys(TEMPLATES).map(t => (
-                    <button type="button" key={t} onClick={() => applyTemplate(t)}
-                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                        form.incident_type === t
-                          ? 'bg-soc-cyan/20 text-soc-cyan border-soc-cyan/40'
-                          : 'border-soc-border text-soc-muted hover:text-soc-text hover:border-soc-border'
-                      }`}>{t}</button>
+                    <button type="button" key={t} onClick={() => applyTemplate(t)} style={{
+                      fontSize: 12, padding: '5px 12px', borderRadius: 8,
+                      border: `1px solid ${form.incident_type === t ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                      background: form.incident_type === t ? 'rgba(139,92,246,0.12)' : 'transparent',
+                      color: form.incident_type === t ? '#A78BFA' : '#71717A',
+                      cursor: 'pointer', transition: 'all 0.12s',
+                    }}>{t}</button>
                   ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-xs text-soc-muted mb-1.5">Title *</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={lbl}>Title *</label>
                   <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                    className="w-full bg-soc-surface border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan"
-                    placeholder="e.g. Phishing attack targeting finance team" required />
+                    style={inp} placeholder="e.g. Phishing attack targeting finance team" required />
                 </div>
                 <div>
-                  <label className="block text-xs text-soc-muted mb-1.5">Severity</label>
+                  <label style={lbl}>Severity</label>
                   <select value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}
-                    className="w-full bg-soc-surface border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan">
-                    {['Critical', 'High', 'Medium', 'Low'].map(s => <option key={s}>{s}</option>)}
+                    style={{ ...inp, paddingRight: 32 }}>
+                    {['Critical','High','Medium','Low'].map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-soc-muted mb-1.5">Classification</label>
+                  <label style={lbl}>Classification</label>
                   <select value={form.classification} onChange={e => setForm(f => ({ ...f, classification: e.target.value }))}
-                    className="w-full bg-soc-surface border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan">
-                    {['TLP:RED', 'TLP:AMBER', 'TLP:GREEN', 'TLP:WHITE'].map(s => <option key={s}>{s}</option>)}
+                    style={{ ...inp, paddingRight: 32 }}>
+                    {['TLP:RED','TLP:AMBER','TLP:GREEN','TLP:WHITE'].map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-soc-muted mb-1.5">Analyst Name</label>
+                  <label style={lbl}>Analyst Name</label>
                   <input value={form.analyst_name} onChange={e => setForm(f => ({ ...f, analyst_name: e.target.value }))}
-                    className="w-full bg-soc-surface border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan"
-                    placeholder="Prasanna Kumar" />
+                    style={inp} placeholder="Prasanna Kumar" />
                 </div>
                 <div>
-                  <label className="block text-xs text-soc-muted mb-1.5">Customer Name</label>
+                  <label style={lbl}>Customer Name</label>
                   <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))}
-                    className="w-full bg-soc-surface border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan"
-                    placeholder="Acme Corp" />
+                    style={inp} placeholder="Acme Corp" />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs text-soc-muted mb-1.5">Affected Systems</label>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={lbl}>Affected Systems</label>
                   <input value={form.affected_systems} onChange={e => setForm(f => ({ ...f, affected_systems: e.target.value }))}
-                    className="w-full bg-soc-surface border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan"
-                    placeholder="e.g. WORKSTATION-01, email gateway, finance-server" />
+                    style={inp} placeholder="WORKSTATION-01, email gateway, DC01" />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs text-soc-muted mb-1.5">Initial Description</label>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={lbl}>Initial Description</label>
                   <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                    rows={3} className="w-full bg-soc-surface border border-soc-border rounded-lg px-3 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan resize-none"
-                    placeholder="Describe what happened..." />
+                    rows={3} style={{ ...inp, resize: 'vertical' }} placeholder="Describe what happened..." />
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowNew(false)}
-                  className="flex-1 bg-soc-surface border border-soc-border text-soc-text py-2.5 rounded-lg text-sm hover:bg-soc-card transition-colors">
-                  Cancel
-                </button>
-                <button type="submit" disabled={creating}
-                  className="flex-1 bg-soc-cyan text-soc-bg font-semibold py-2.5 rounded-lg text-sm hover:bg-soc-cyan-dim transition-colors disabled:opacity-50">
-                  {creating ? 'Creating...' : 'Create Case'}
-                </button>
+              <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                <button type="button" onClick={() => setShowNew(false)} style={{
+                  flex: 1, padding: '10px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'transparent', color: '#A1A1AA', fontSize: 13, cursor: 'pointer',
+                }}>Cancel</button>
+                <button type="submit" disabled={creating} style={{
+                  flex: 1, padding: '10px', borderRadius: 9, border: 'none',
+                  background: creating ? '#5B21B6' : '#7C3AED', color: '#fff',
+                  fontSize: 13, fontWeight: 500, cursor: creating ? 'not-allowed' : 'pointer',
+                  transition: 'background 0.15s',
+                }}>{creating ? 'Creating...' : 'Create Case'}</button>
               </div>
             </form>
           </div>
